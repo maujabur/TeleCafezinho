@@ -29,6 +29,22 @@
       </header>
 
       <section class="panel">
+        <h2>TeleCafezinho</h2>
+        <div class="metrics">
+          <div class="metric"><span>Grupo</span><strong id="telecafeGroup">--</strong></div>
+          <div class="metric"><span>Origem local</span><strong id="telecafeSignalSource">--</strong></div>
+          <div class="metric"><span>Estado combinado</span><strong id="telecafeCombinedState">--</strong></div>
+          <div class="metric"><span>Peers ativos</span><strong id="telecafeRemoteActiveCount">--</strong></div>
+        </div>
+        <div class="meta">
+          <div><span>Sinal local</span><strong id="telecafeLocalActive">--</strong></div>
+          <div><span>Ultimo remoto</span><strong id="telecafeLastRemoteDeviceId">--</strong></div>
+          <div><span>Sequencia local</span><strong id="telecafeSignalSeq">--</strong></div>
+          <div><span>Disponibilidade</span><strong id="telecafeAvailability">--</strong></div>
+        </div>
+      </section>
+
+      <section class="panel">
         <div class="grid">
           <div class="card"><span>Firmware</span><strong id="firmwareVersion">--</strong></div>
           <div class="card"><span>Wi-Fi</span><strong id="wifiStatus">--</strong></div>
@@ -56,6 +72,10 @@
     </main>
 
     <script>
+      function statusValue(status, id, fallback) {
+        return status[id] !== undefined && status[id] !== null ? status[id] : fallback;
+      }
+
       function formatUptime(seconds) {
         if (!Number.isFinite(seconds) || seconds < 0) return "--";
         const total = Math.floor(seconds);
@@ -130,6 +150,22 @@
             "Politica " + String(status.wifi_apsta_policy ?? "--") +
             " | " + String(status.wifi_apsta_grace_period_s ?? "--") + " s" +
             (status.wifi_apsta_auto_drop_pending ? " | drop pendente" : "");
+          const telecafeGroup = statusValue(status, "telecafe.group", "");
+          document.getElementById("telecafeGroup").textContent = telecafeGroup || "--";
+          document.getElementById("telecafeSignalSource").textContent =
+            statusValue(status, "telecafe.signal_source", "--");
+          document.getElementById("telecafeCombinedState").textContent =
+            statusValue(status, "telecafe.combined_state", "--");
+          document.getElementById("telecafeRemoteActiveCount").textContent =
+            String(statusValue(status, "telecafe.remote_active_count", 0));
+          document.getElementById("telecafeLocalActive").textContent =
+            statusValue(status, "telecafe.local_active", false) ? "Ativo" : "Inativo";
+          document.getElementById("telecafeLastRemoteDeviceId").textContent =
+            statusValue(status, "telecafe.last_remote_device_id", "") || "--";
+          document.getElementById("telecafeSignalSeq").textContent =
+            String(statusValue(status, "telecafe.signal_seq", 0));
+          document.getElementById("telecafeAvailability").textContent =
+            telecafeGroup ? "Registrado no status web" : "Aguardando registro";
         } catch (err) {
           document.getElementById("statusText").textContent = "Estado indisponivel";
           document.getElementById("timeText").textContent = "Ultima atualizacao: indisponivel";

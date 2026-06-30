@@ -7,6 +7,8 @@
 #include "tele_channels.h"
 #include "tele_status.h"
 
+#define TELE_CAFEZINHO_CHANNEL_FLAGS (TELE_CHANNEL_FLAG_MQTT | TELE_CHANNEL_FLAG_WEB)
+
 static const char *read_group(void *ctx)
 {
     (void)ctx;
@@ -56,7 +58,7 @@ static const tele_status_field_t s_fields[] = {
         .description = "TeleCafezinho group membership.",
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_STRING,
-        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
         .read.string = read_group,
     },
@@ -66,7 +68,7 @@ static const tele_status_field_t s_fields[] = {
         .description = "Local active signal source.",
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_STRING,
-        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL,
         .read.string = read_signal_source,
     },
@@ -76,7 +78,7 @@ static const tele_status_field_t s_fields[] = {
         .description = "Whether the local signal is active.",
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_BOOL,
-        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
         .read.boolean = read_local_active,
     },
@@ -86,7 +88,7 @@ static const tele_status_field_t s_fields[] = {
         .description = "Count of active remote peers in the same group.",
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_U32,
-        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
         .read.u32 = read_remote_active_count,
     },
@@ -96,7 +98,7 @@ static const tele_status_field_t s_fields[] = {
         .description = "Combined local and remote activity state.",
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_STRING,
-        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
         .read.string = read_combined_state,
     },
@@ -106,7 +108,7 @@ static const tele_status_field_t s_fields[] = {
         .description = "Last accepted remote active peer.",
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_STRING,
-        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL,
         .read.string = read_last_remote_device_id,
     },
@@ -116,7 +118,7 @@ static const tele_status_field_t s_fields[] = {
         .description = "Last local signal sequence number.",
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_U32,
-        .channel_flags = TELE_CHANNEL_FLAG_MQTT,
+        .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
         .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_TECHNICAL,
         .read.u32 = read_signal_seq,
     },

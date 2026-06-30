@@ -4,6 +4,7 @@
 
 #define TELE_CONFIG_HOST_TEST 1
 
+#include "tele_channels.h"
 #include "tele_cafezinho_config.h"
 #include "tele_config.h"
 
@@ -12,8 +13,14 @@ int main(void)
     char text[64] = {0};
     int32_t i32 = 0;
     uint32_t u32 = 0;
+    const tele_config_field_t *field = NULL;
 
     assert(tele_cafezinho_config_register() == ESP_OK);
+
+    field = tele_config_find_field(TELE_CAFEZINHO_CONFIG_ID_GROUP);
+    assert(field != NULL);
+    assert((field->channel_flags & TELE_CHANNEL_FLAG_MQTT) != 0);
+    assert((field->channel_flags & TELE_CHANNEL_FLAG_WEB) != 0);
 
     assert(tele_cafezinho_config_get_group(text, sizeof(text)) == ESP_OK);
     assert(strcmp(text, "bancada") == 0);

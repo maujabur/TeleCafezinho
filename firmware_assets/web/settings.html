@@ -31,6 +31,50 @@
       </header>
 
       <details open>
+        <summary>TeleCafezinho</summary>
+        <div class="content">
+          <div class="grid">
+            <div>
+              <label for="telecafeGroup">Grupo</label>
+              <input id="telecafeGroup" maxlength="31" autocomplete="off">
+            </div>
+            <div>
+              <label for="telecafeSignalSource">Origem do sinal</label>
+              <select id="telecafeSignalSource">
+                <option value="gpio">GPIO</option>
+              </select>
+            </div>
+            <div>
+              <label for="telecafeGpioNum">GPIO</label>
+              <input id="telecafeGpioNum" type="number" min="-1" max="48" value="-1">
+            </div>
+            <div>
+              <label for="telecafeGpioActiveLevel">Nivel ativo</label>
+              <select id="telecafeGpioActiveLevel">
+                <option value="1">Alto</option>
+                <option value="0">Baixo</option>
+              </select>
+            </div>
+            <div>
+              <label for="telecafeGpioDebounceMs">Debounce (ms)</label>
+              <input id="telecafeGpioDebounceMs" type="number" min="20" max="5000" value="150">
+            </div>
+            <div>
+              <label for="telecafeSignalTtlS">TTL do sinal (s)</label>
+              <input id="telecafeSignalTtlS" type="number" min="2" max="3600" value="20">
+            </div>
+            <div>
+              <label for="telecafePublishIntervalS">Intervalo publish (s)</label>
+              <input id="telecafePublishIntervalS" type="number" min="1" max="3600" value="5">
+            </div>
+            <button type="button" onclick="saveTeleCafezinho()">Salvar TeleCafezinho</button>
+            <button class="secondary" type="button" onclick="resetTeleCafezinho()">Reset defaults</button>
+          </div>
+          <div class="readout" id="telecafeReadout">TeleCafezinho: --</div>
+        </div>
+      </details>
+
+      <details open>
         <summary>Conectividade</summary>
         <div class="content">
           <div class="grid">
@@ -78,6 +122,13 @@
         staMaxRetry: "wifi.sta_max_retry",
         apstaPolicy: "wifi.apsta_policy",
         apstaGrace: "wifi.apsta_grace_period_s",
+        telecafeGroup: "telecafe.group",
+        telecafeSignalSource: "telecafe.signal_source",
+        telecafeGpioNum: "telecafe.gpio_num",
+        telecafeGpioActiveLevel: "telecafe.gpio_active_level",
+        telecafeGpioDebounceMs: "telecafe.gpio_debounce_ms",
+        telecafeSignalTtlS: "telecafe.signal_ttl_s",
+        telecafePublishIntervalS: "telecafe.signal_publish_interval_s",
       };
 
       let configFieldsById = {};
@@ -127,6 +178,13 @@
           "CONFIG_WIFI_STA_MAX_RETRY=" + Math.round(fieldNumber(CONFIG_IDS.staMaxRetry, 0)),
           "CONFIG_WIFI_APSTA_POLICY=" + Math.round(fieldNumber(CONFIG_IDS.apstaPolicy, 0)),
           "CONFIG_WIFI_APSTA_GRACE_PERIOD_S=" + Math.round(fieldNumber(CONFIG_IDS.apstaGrace, 0)),
+          "CONFIG_TELE_CAFEZINHO_DEFAULT_GROUP=" + sdkconfigString(fieldString(CONFIG_IDS.telecafeGroup, "default")),
+          "CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_SOURCE=" + sdkconfigString(fieldString(CONFIG_IDS.telecafeSignalSource, "gpio")),
+          "CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_NUM=" + Math.round(fieldNumber(CONFIG_IDS.telecafeGpioNum, -1)),
+          "CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_ACTIVE_LEVEL=" + Math.round(fieldNumber(CONFIG_IDS.telecafeGpioActiveLevel, 1)),
+          "CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_DEBOUNCE_MS=" + Math.round(fieldNumber(CONFIG_IDS.telecafeGpioDebounceMs, 150)),
+          "CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_TTL_S=" + Math.round(fieldNumber(CONFIG_IDS.telecafeSignalTtlS, 20)),
+          "CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_PUBLISH_INTERVAL_S=" + Math.round(fieldNumber(CONFIG_IDS.telecafePublishIntervalS, 5)),
         ];
 
         const ssidField = configFieldsById[CONFIG_IDS.provisioningSsid] || {};
@@ -213,6 +271,12 @@
         });
       }
 
+      function setNumberBounds(elementId, field, fallbackMin, fallbackMax) {
+        const element = document.getElementById(elementId);
+        element.min = field && field.min !== undefined ? field.min : fallbackMin;
+        element.max = field && field.max !== undefined ? field.max : fallbackMax;
+      }
+
       function clampNumber(value, min, max, fallback) {
         const parsed = Number(value);
         if (!Number.isFinite(parsed)) {
@@ -240,6 +304,13 @@
           const retryField = configFieldsById[CONFIG_IDS.staMaxRetry] || {};
           const policyField = configFieldsById[CONFIG_IDS.apstaPolicy] || {};
           const graceField = configFieldsById[CONFIG_IDS.apstaGrace] || {};
+          const telecafeGroupField = configFieldsById[CONFIG_IDS.telecafeGroup] || {};
+          const telecafeSignalSourceField = configFieldsById[CONFIG_IDS.telecafeSignalSource] || {};
+          const telecafeGpioNumField = configFieldsById[CONFIG_IDS.telecafeGpioNum] || {};
+          const telecafeGpioActiveLevelField = configFieldsById[CONFIG_IDS.telecafeGpioActiveLevel] || {};
+          const telecafeGpioDebounceField = configFieldsById[CONFIG_IDS.telecafeGpioDebounceMs] || {};
+          const telecafeTtlField = configFieldsById[CONFIG_IDS.telecafeSignalTtlS] || {};
+          const telecafePublishField = configFieldsById[CONFIG_IDS.telecafePublishIntervalS] || {};
 
           renderApstaChoices(policyField);
 
@@ -258,11 +329,43 @@
           document.getElementById("wifiApstaGrace").min = graceField.min !== undefined ? graceField.min : 30;
           document.getElementById("wifiApstaGrace").max = graceField.max !== undefined ? graceField.max : 3600;
           document.getElementById("wifiApstaGrace").value = fieldNumber(CONFIG_IDS.apstaGrace, 600);
+          document.getElementById("telecafeGroup").value = fieldString(CONFIG_IDS.telecafeGroup, "default");
+          document.getElementById("telecafeGroup").disabled = fieldHasFlag(telecafeGroupField, "read_only");
+          document.getElementById("telecafeSignalSource").value =
+            fieldString(CONFIG_IDS.telecafeSignalSource, "gpio");
+          document.getElementById("telecafeSignalSource").disabled =
+            fieldHasFlag(telecafeSignalSourceField, "read_only");
+          setNumberBounds("telecafeGpioNum", telecafeGpioNumField, -1, 48);
+          document.getElementById("telecafeGpioNum").value = fieldNumber(CONFIG_IDS.telecafeGpioNum, -1);
+          document.getElementById("telecafeGpioNum").disabled = fieldHasFlag(telecafeGpioNumField, "read_only");
+          document.getElementById("telecafeGpioActiveLevel").value =
+            String(fieldNumber(CONFIG_IDS.telecafeGpioActiveLevel, 1));
+          document.getElementById("telecafeGpioActiveLevel").disabled =
+            fieldHasFlag(telecafeGpioActiveLevelField, "read_only");
+          setNumberBounds("telecafeGpioDebounceMs", telecafeGpioDebounceField, 20, 5000);
+          document.getElementById("telecafeGpioDebounceMs").value =
+            fieldNumber(CONFIG_IDS.telecafeGpioDebounceMs, 150);
+          document.getElementById("telecafeGpioDebounceMs").disabled =
+            fieldHasFlag(telecafeGpioDebounceField, "read_only");
+          setNumberBounds("telecafeSignalTtlS", telecafeTtlField, 2, 3600);
+          document.getElementById("telecafeSignalTtlS").value =
+            fieldNumber(CONFIG_IDS.telecafeSignalTtlS, 20);
+          document.getElementById("telecafeSignalTtlS").disabled = fieldHasFlag(telecafeTtlField, "read_only");
+          setNumberBounds("telecafePublishIntervalS", telecafePublishField, 1, 3600);
+          document.getElementById("telecafePublishIntervalS").value =
+            fieldNumber(CONFIG_IDS.telecafePublishIntervalS, 5);
+          document.getElementById("telecafePublishIntervalS").disabled =
+            fieldHasFlag(telecafePublishField, "read_only");
           document.getElementById("wifiReadout").textContent =
             "Provisioning SSID " + (ssidField.value_hidden ? "oculto" : (fieldString(CONFIG_IDS.provisioningSsid, "") || "--")) +
             " | retry " + Number(status.wifi_sta_max_retry || 0) +
             " | politica APSTA " + Number(status.wifi_apsta_policy || 0) +
             " | grace " + Number(status.wifi_apsta_grace_period_s || 0) + " s";
+          document.getElementById("telecafeReadout").textContent =
+            "Grupo " + (status["telecafe.group"] || fieldString(CONFIG_IDS.telecafeGroup, "--")) +
+            " | estado " + (status["telecafe.combined_state"] || "--") +
+            " | local " + (status["telecafe.local_active"] ? "ativo" : "inativo") +
+            " | remotos " + String(status["telecafe.remote_active_count"] || 0);
           document.getElementById("systemReadout").textContent =
             "Firmware " + (status.firmware_version || "--") +
             " | IP " + (status.ip || "--") +
@@ -360,6 +463,90 @@
           loadAll();
         } catch (err) {
           showBanner("error", "Falha ao restaurar defaults: " + (err.message || "--"));
+        }
+      }
+
+      function clampedInputNumber(elementId, configId, fallback) {
+        const element = document.getElementById(elementId);
+        return Math.round(clampNumber(element.value,
+                                      Number(element.min),
+                                      Number(element.max),
+                                      fieldDefault(configId, fallback)));
+      }
+
+      function addUpdateIfEnabled(updates, elementId, id, value) {
+        if (!document.getElementById(elementId).disabled) {
+          updates.push([id, value]);
+        }
+      }
+
+      async function saveTeleCafezinho() {
+        const group = document.getElementById("telecafeGroup").value.trim();
+        if (!group) {
+          showBanner("error", "Informe um grupo TeleCafezinho.");
+          return;
+        }
+
+        const updates = [];
+        addUpdateIfEnabled(updates, "telecafeGroup", CONFIG_IDS.telecafeGroup, group);
+        addUpdateIfEnabled(updates, "telecafeSignalSource", CONFIG_IDS.telecafeSignalSource,
+                           document.getElementById("telecafeSignalSource").value || "gpio");
+        addUpdateIfEnabled(updates, "telecafeGpioNum", CONFIG_IDS.telecafeGpioNum,
+                           clampedInputNumber("telecafeGpioNum", CONFIG_IDS.telecafeGpioNum, -1));
+        addUpdateIfEnabled(updates, "telecafeGpioActiveLevel", CONFIG_IDS.telecafeGpioActiveLevel,
+                           Number(document.getElementById("telecafeGpioActiveLevel").value || 1));
+        addUpdateIfEnabled(updates, "telecafeGpioDebounceMs", CONFIG_IDS.telecafeGpioDebounceMs,
+                           clampedInputNumber("telecafeGpioDebounceMs", CONFIG_IDS.telecafeGpioDebounceMs, 150));
+        addUpdateIfEnabled(updates, "telecafeSignalTtlS", CONFIG_IDS.telecafeSignalTtlS,
+                           clampedInputNumber("telecafeSignalTtlS", CONFIG_IDS.telecafeSignalTtlS, 20));
+        addUpdateIfEnabled(updates, "telecafePublishIntervalS", CONFIG_IDS.telecafePublishIntervalS,
+                           clampedInputNumber("telecafePublishIntervalS",
+                                              CONFIG_IDS.telecafePublishIntervalS,
+                                              5));
+
+        try {
+          const results = [];
+          for (const [id, value] of updates) {
+            results.push(await setConfigValue(id, value));
+          }
+          const requiresReboot = results.some((result) => result.requires_reboot);
+          showBanner("ok",
+                     requiresReboot ?
+                     "TeleCafezinho salvo. Alguns campos recomendam reboot." :
+                     "TeleCafezinho salvo.");
+          loadAll();
+        } catch (err) {
+          showBanner("error", "Falha ao salvar TeleCafezinho: " + (err.message || "--"));
+        }
+      }
+
+      async function resetTeleCafezinho() {
+        if (!confirm("Restaurar defaults do TeleCafezinho?")) {
+          return;
+        }
+
+        try {
+          const ids = [
+            CONFIG_IDS.telecafeGroup,
+            CONFIG_IDS.telecafeSignalSource,
+            CONFIG_IDS.telecafeGpioNum,
+            CONFIG_IDS.telecafeGpioActiveLevel,
+            CONFIG_IDS.telecafeGpioDebounceMs,
+            CONFIG_IDS.telecafeSignalTtlS,
+            CONFIG_IDS.telecafePublishIntervalS,
+          ];
+          const results = [];
+          for (const id of ids) {
+            results.push(await resetConfigValue(id));
+          }
+          const requiresReboot = results.some((result) => result.requires_reboot);
+          showBanner("ok",
+                     requiresReboot ?
+                     "Defaults do TeleCafezinho restaurados. Alguns campos recomendam reboot." :
+                     "Defaults do TeleCafezinho restaurados.");
+          loadAll();
+        } catch (err) {
+          showBanner("error", "Falha ao restaurar TeleCafezinho: " + (err.message || "--"));
         }
       }
 
