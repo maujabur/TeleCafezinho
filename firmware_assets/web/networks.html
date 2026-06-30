@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/app.css">
+    <title>TeleSystem - Redes</title>
+  </head>
+  <body>
+    <main class="shell">
+      <nav class="tech-nav" aria-label="Navegacao tecnica">
+        <a href="/">Inicio</a>
+        <div class="links">
+          <a href="/status">Status</a>
+          <a href="/networks">Redes</a>
+          <a href="/ota">OTA</a>
+          <a href="/settings">Ajustes</a>
+          <a href="/logs">Logs</a>
+        </div>
+      </nav>
+
+      <header>
+        <div>
+          <h1>Redes Wi-Fi Salvas</h1>
+          <p class="subtle">Prioridade maior = preferida. O dispositivo tenta a rede de maior prioridade disponivel primeiro.</p>
+        </div>
+        <div class="actions">
+          <button class="secondary" type="button" onclick="loadNetworks()">Atualizar</button>
+        </div>
+      </header>
+
+      <section class="panel">
+        <ul id="netList" class="network-list">
+          <li class="empty-msg">Carregando...</li>
+        </ul>
+      </section>
+
+      <div id="banner" class="banner" role="alert"></div>
+    </main>
+
+    <script>
+      var networks = [];
+      var displayedNetworks = [];
+
+      function showBanner(msg, isError) {
+        var b = document.getElementById('banner');
+        b.textContent = msg;
+        b.className = 'banner show ' + (isError ? 'error' : 'ok');
+        clearTimeout(b._timer);
+        b._timer = setTimeout(function () { b.className = 'banner'; }, 4000);
+      }
+
+      function renderList() {
+        var ul = document.getElementById('netList');
+        if (!networks.length) {
+          ul.innerHTML = '<li class="empty-msg">Nenhuma rede salva.</li>';
+          return;
+        }
+
+        // Sort descending by priority for display
+        displayedNetworks = networks.slice().sort(function (a, b) { return b.priority - a.priority; });
+
+        ul.innerHTML = displayedNetworks.map(function (net, idx) {
+          var ssidEsc = escHtml(net.ssid);
+          return '<li class="network-item">' +
+            '<span class="net-ssid">' + ssidEsc + '</span>' +
+            '<div class="order-btns">' +
+              '<button type="button" title="Aumentar prioridade" onclick="adjustPriorityByIndex(' + idx + ',1)">&#9650;</button>' +
+              '<button type="button" title="Diminuir prioridade" onclick="adjustPriorityByIndex(' + idx + ',-1)">&#9660;</button>' +
+            '</div>' +
+            '<div class="net-priority-group">' +
+              '<label for="pri-' + idx + '">Prioridade</label>' +
+              '<input id="pri-' + idx + '" type="number" value="' + net.priority + '" ' +
+                '/>' +
+              '<button type="button" onclick="savePriorityInputByIndex(' + idx + ')">Salvar</button>' +
+            '</div>' +
+            '<button class="danger" type="button" onclick="deleteNetworkByIndex(' + idx + ')">Excluir</button>' +
+          '</li>';
+        }).join('');
+      }
+
+      function escHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function loadNetworks() {
+        fetch('/api/wifi/saved')
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            networks = data.saved_networks || [];
+            renderList();
+          })
+          .catch(function () { showBanner('Falha ao carregar redes.', true); });
+      }
+
+      function findNetwork(ssid) {
+        for (var i = 0; i < networks.length; i++) {
+          if (networks[i].ssid === ssid) return networks[i];
+        }
+        return null;
+      }
+
+      function adjustPriorityByIndex(index, delta) {
+        var selected = displayedNetworks[index];
+        if (!selected) return;
+        var ssid = selected.ssid;
+        var net = findNetwork(ssid);
+        if (!net) return;
+        setPriority(ssid, net.priority + delta);
+      }
+
+      function savePriorityInputByIndex(index) {
+        var selected = displayedNetworks[index];
+        if (!selected) return;
+        var ssid = selected.ssid;
+        var input = document.getElementById('pri-' + index);
+        if (!input) return;
+        var val = input.value;
+        var p = parseInt(val, 10);
+        if (isNaN(p)) { showBanner('Prioridade invalida.', true); return; }
+        setPriority(ssid, p);
+      }
+
+      function setPriority(ssid, priority) {
+        fetch('/api/wifi/saved', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssid: ssid, priority: priority })
+        })
+          .then(function (r) {
+            if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+            var net = findNetwork(ssid);
+            if (net) net.priority = priority;
+            renderList();
+            showBanner('Prioridade de "' + ssid + '" atualizada para ' + priority + '.', false);
+          })
+          .catch(function (e) { showBanner('Erro: ' + e.message, true); });
+      }
+
+      function deleteNetworkByIndex(index) {
+        var selected = displayedNetworks[index];
+        if (!selected) return;
+        var ssid = selected.ssid;
+        if (!confirm('Excluir rede "' + ssid + '"?')) return;
+        fetch('/api/wifi/saved', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssid: ssid })
+        })
+          .then(function (r) {
+            if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+            networks = networks.filter(function (n) { return n.ssid !== ssid; });
+            renderList();
+            showBanner('Rede "' + ssid + '" removida.', false);
+          })
+          .catch(function (e) { showBanner('Erro: ' + e.message, true); });
+      }
+
+      loadNetworks();
+    </script>
+  </body>
+</html>

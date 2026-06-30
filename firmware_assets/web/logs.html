@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/app.css">
+    <title>TeleSystem - Logs</title>
+  </head>
+  <body>
+    <main class="shell">
+      <nav class="tech-nav" aria-label="Navegacao tecnica">
+        <a href="/">Inicio</a>
+        <div class="links">
+          <a href="/status">Status</a>
+          <a href="/networks">Redes</a>
+          <a href="/ota">OTA</a>
+          <a href="/settings">Ajustes</a>
+          <a href="/logs">Logs</a>
+        </div>
+      </nav>
+
+      <header>
+        <div>
+          <h1>Logs Tecnicos</h1>
+          <p class="status" id="status">Atualizando automaticamente.</p>
+        </div>
+        <div class="actions">
+          <button class="secondary" type="button" onclick="loadLogs()">Atualizar</button>
+          <button class="danger" type="button" onclick="restartDevice()">Restart</button>
+        </div>
+      </header>
+
+      <div id="banner" class="banner"></div>
+      <div class="badges">
+        <span class="badge" id="firmwareBadge">Firmware: --</span>
+        <span class="badge" id="wifiBadge">Wi-Fi: --</span>
+        <span class="badge" id="systemBadge">Sistema: --</span>
+      </div>
+
+      <div id="logOutput" class="log-output">Carregando logs...</div>
+    </main>
+
+    <script>
+      function showError(text) {
+        const el = document.getElementById("banner");
+        el.className = "banner show error";
+        el.textContent = text;
+      }
+
+      function renderLogs(text) {
+        const output = document.getElementById("logOutput");
+        const lines = (text || "Sem logs no buffer.").split(/\r?\n/).reverse();
+        output.textContent = "";
+
+        lines.forEach((line) => {
+          const row = document.createElement("div");
+          row.className = "log-line" + (line.includes(" | ") ? " structured" : "");
+
+          if (line.includes(" | ")) {
+            line.split(" | ").forEach((part) => {
+              const segment = document.createElement("span");
+              segment.className = "log-segment";
+              segment.textContent = part;
+              row.appendChild(segment);
+            });
+          } else {
+            row.textContent = line;
+          }
+
+          output.appendChild(row);
+        });
+      }
+
+      async function loadLogs() {
+        try {
+          const resp = await fetch("/api/logs", { cache: "no-store" });
+          const text = await resp.text();
+          const output = document.getElementById("logOutput");
+          const shouldStickTop = output.scrollTop <= 24;
+          renderLogs(text);
+          if (shouldStickTop) {
+            output.scrollTop = 0;
+          }
+          document.getElementById("status").textContent =
+            "Ultima atualizacao: " + new Date().toLocaleTimeString();
+        } catch (err) {
+          showError("Nao foi possivel carregar logs.");
+        }
+      }
+
+      async function loadStatus() {
+        try {
+          const statusResp = await fetch("/api/status", { cache: "no-store" });
+          const statusData = await statusResp.json();
+          const status = statusData || {};
+          document.getElementById("firmwareBadge").textContent =
+            "Firmware: " + (status.firmware_version || "--");
+          document.getElementById("wifiBadge").textContent =
+            "Wi-Fi: " + (status.wifi_ready ? status.ssid || "conectado" : status.state || "--");
+          document.getElementById("systemBadge").textContent =
+            "Sistema: uptime " + Math.floor(Number(status.uptime_seconds || 0)) + "s";
+
+        } catch (err) {
+          document.getElementById("firmwareBadge").textContent = "Firmware: indisponivel";
+          document.getElementById("wifiBadge").textContent = "Wi-Fi: indisponivel";
+          document.getElementById("systemBadge").textContent = "Sistema: indisponivel";
+        }
+      }
+
+      async function restartDevice() {
+        if (!confirm("Reiniciar a placa agora?")) {
+          return;
+        }
+
+        const resp = await fetch("/api/restart", { method: "POST" });
+        const text = await resp.text();
+        document.getElementById("status").textContent = text;
+      }
+
+      loadLogs();
+      loadStatus();
+      setInterval(loadLogs, 2000);
+      setInterval(loadStatus, 2000);
+    </script>
+  </body>
+</html>

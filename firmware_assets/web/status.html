@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/app.css">
+    <title>TeleSystem - Status</title>
+  </head>
+  <body>
+    <main class="shell">
+      <nav class="tech-nav" aria-label="Navegacao tecnica">
+        <a href="/">Inicio</a>
+        <div class="links">
+          <a href="/status">Status</a>
+          <a href="/networks">Redes</a>
+          <a href="/ota">OTA</a>
+          <a href="/settings">Ajustes</a>
+          <a href="/logs">Logs</a>
+        </div>
+      </nav>
+
+      <header>
+        <div>
+          <h1>Status Tecnico</h1>
+          <p class="subtle" id="statusText">Carregando estado...</p>
+          <p class="subtle" id="timeText">Ultima atualizacao: --</p>
+        </div>
+        <button class="secondary" type="button" onclick="refreshStatus()">Atualizar</button>
+      </header>
+
+      <section class="panel">
+        <div class="grid">
+          <div class="card"><span>Firmware</span><strong id="firmwareVersion">--</strong></div>
+          <div class="card"><span>Wi-Fi</span><strong id="wifiStatus">--</strong></div>
+          <div class="card"><span>IP</span><strong id="ipStatus">--</strong></div>
+          <div class="card"><span>Provisionamento</span><strong id="provisioningStatus">--</strong></div>
+          <div class="card"><span>Horario</span><strong id="clockStatus">--</strong></div>
+          <div class="card"><span>Uptime</span><strong id="uptimeStatus">--</strong></div>
+          <div class="card"><span>VBAT</span><strong id="vbatStatus">--</strong></div>
+          <div class="card"><span>Power Good</span><strong id="powerGoodStatus">--</strong></div>
+          <div class="card"><span>Ultimo erro</span><strong id="errorStatus">--</strong></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Conectividade</h2>
+        <div class="metrics">
+          <div class="metric"><span>RSSI</span><strong id="rssiMetric">--</strong></div>
+          <div class="metric"><span>Retry STA</span><strong id="retryMetric">--</strong></div>
+          <div class="metric"><span>Reconexoes</span><strong id="reconnectMetric">--</strong></div>
+          <div class="metric"><span>APSTA</span><strong id="apstaMetric">--</strong></div>
+        </div>
+      </section>
+
+      <div id="banner" class="banner"></div>
+    </main>
+
+    <script>
+      function formatUptime(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) return "--";
+        const total = Math.floor(seconds);
+        const days = Math.floor(total / 86400);
+        const hours = Math.floor((total % 86400) / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        const secs = total % 60;
+        const h = String(hours).padStart(2, "0");
+        const m = String(minutes).padStart(2, "0");
+        const s = String(secs).padStart(2, "0");
+        return days > 0 ? String(days) + "d " + h + ":" + m + ":" + s : h + ":" + m + ":" + s;
+      }
+
+      function wifiStateName(value) {
+        const states = {
+          init: "Inicializando",
+          sta_connecting: "Conectando",
+          sta_connected: "Conectado",
+          provisioning_ap: "Provisionamento",
+        };
+        return states[value] || value || "--";
+      }
+
+      async function refreshStatus() {
+        try {
+          const resp = await fetch("/api/status", { cache: "no-store" });
+          if (!resp.ok) throw new Error("status");
+          const status = await resp.json();
+
+          document.getElementById("statusText").textContent =
+            wifiStateName(status.state) + (status.wifi_ready ? " | pronto" : "");
+          document.getElementById("timeText").textContent =
+            "Ultima atualizacao: " + new Date().toLocaleTimeString();
+          document.getElementById("firmwareVersion").textContent = status.firmware_version || "--";
+          document.getElementById("wifiStatus").textContent =
+            (status.wifi_ready ? "Pronto" : wifiStateName(status.state)) +
+            (status.ssid ? " | " + status.ssid : "");
+          document.getElementById("ipStatus").textContent = status.ip || "--";
+          document.getElementById("provisioningStatus").textContent =
+            status.provisioning_active ? "Ativo" : "Inativo";
+          document.getElementById("clockStatus").textContent =
+            status.time_synchronized
+              ? (status.local_time_iso8601 || status.utc_time_iso8601 || "Sincronizado")
+              : "Aguardando NTP";
+          document.getElementById("uptimeStatus").textContent =
+            formatUptime(Number(status.uptime_seconds || 0));
+          document.getElementById("errorStatus").textContent = status.last_error || "--";
+
+          if (!status.vbat || !status.vbat.enabled) {
+            document.getElementById("vbatStatus").textContent = "Desabilitado";
+          } else if (!status.vbat.initialized) {
+            document.getElementById("vbatStatus").textContent = "Nao inicializado";
+          } else if (!status.vbat.measurement_count) {
+            document.getElementById("vbatStatus").textContent = "Sem amostra";
+          } else {
+            document.getElementById("vbatStatus").textContent =
+              Number((status.vbat.vbat_mv || 0) / 1000).toFixed(3) + " V" +
+              " | " + (status.vbat.last_moment || "--");
+          }
+
+          const powerGood = status.power_good || {};
+          document.getElementById("powerGoodStatus").textContent =
+            (powerGood.enabled ? "Ativo" : "Inativo") +
+            " | GPIO " + (powerGood.gpio !== undefined ? powerGood.gpio : "--");
+          document.getElementById("rssiMetric").textContent =
+            status.wifi_rssi !== undefined ? String(status.wifi_rssi) + " dBm" : "--";
+          document.getElementById("retryMetric").textContent =
+            status.wifi_sta_max_retry !== undefined ? String(status.wifi_sta_max_retry) : "--";
+          document.getElementById("reconnectMetric").textContent =
+            String(status.wifi_reconnect_attempts || 0);
+          document.getElementById("apstaMetric").textContent =
+            "Politica " + String(status.wifi_apsta_policy ?? "--") +
+            " | " + String(status.wifi_apsta_grace_period_s ?? "--") + " s" +
+            (status.wifi_apsta_auto_drop_pending ? " | drop pendente" : "");
+        } catch (err) {
+          document.getElementById("statusText").textContent = "Estado indisponivel";
+          document.getElementById("timeText").textContent = "Ultima atualizacao: indisponivel";
+        }
+      }
+
+      refreshStatus();
+      setInterval(refreshStatus, 3000);
+    </script>
+  </body>
+</html>
