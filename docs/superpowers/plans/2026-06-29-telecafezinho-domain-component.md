@@ -4,9 +4,9 @@
 
 **Goal:** Add a product-specific `tele_cafezinho` domain component that detects a local active/inactive signal, publishes it through TeleSystem MQTT shared topics, tracks active peers in the same group, and drives semantic LED indication through `tele_indicator`.
 
-**Architecture:** `components/tele_cafezinho` owns TeleCafezinho business rules: local signal detection, group membership, peer cache, TTL expiration, combined state, status fields, configuration fields, test commands, and shared-topic payload schema. `tele_mqtt` remains a generic transport and is used only through `tele_mqtt_subscribe_shared()` and `tele_mqtt_publish_shared()`. LED output goes through semantic events registered in `main/app_indicators.c`; the domain component must not call `status_led` directly.
+**Architecture:** `components/tele_cafezinho` is a local ESP-IDF component owned by this product repository and contains TeleCafezinho business rules: local signal detection, group membership, peer cache, TTL expiration, combined state, status fields, configuration fields, test commands, and shared-topic payload schema. `tele_mqtt` remains a generic TeleSystem transport; this plan adds only a generic `tele_mqtt_get_device_id()` API to the managed component, then uses `tele_mqtt_subscribe_shared()` and `tele_mqtt_publish_shared()` from TeleCafezinho. LED output goes through semantic events registered in `main/app_indicators.c`; the domain component must not call `status_led` directly.
 
-**Tech Stack:** ESP-IDF C components, FreeRTOS task/timer, GPIO input, cJSON, `tele_config`, `tele_status`, `tele_commands`, `tele_indicator`, `tele_mqtt` shared topics, host-compiled C tests with lightweight ESP error stubs where practical.
+**Tech Stack:** ESP-IDF C components, local `components/tele_cafezinho`, managed TeleSystem components in `managed_components/`, FreeRTOS task/timer, GPIO input, cJSON, `tele_config`, `tele_status`, `tele_commands`, `tele_indicator`, `tele_mqtt` shared topics, host-compiled C tests with lightweight ESP error stubs where practical.
 
 **Shared MQTT Topic:**
 
@@ -42,9 +42,32 @@ local_active=true,  remote_active_count>0 -> mutual_active
 - Real temperature sensor driver.
 - Temperature threshold and hysteresis runtime behavior.
 - Control Center grouping/filtering changes.
-- Further changes to `tele_mqtt` internals.
+- Product-specific payload or TeleCafezinho behavior inside `tele_mqtt`.
 - Pairing UI, portal branding, product-specific web pages, OTA changes.
 - Multi-group membership per device.
+
+---
+
+## Repository Placement And File Structure
+
+This product repository intentionally adds a local component at `components/tele_cafezinho`. ESP-IDF will discover `components/` automatically from the project root; do not put TeleCafezinho domain code in `managed_components/`, because that directory mirrors TeleSystem-managed dependencies.
+
+`managed_components/tele_mqtt` may be modified in this plan because the project owns the upstream TeleSystem source. Keep that change generic and upstreamable: a public getter for the current MQTT device ID, plus host coverage. Do not add TeleCafezinho topic names, payload fields, group logic, or peer behavior to `tele_mqtt`.
+
+Planned file responsibilities:
+
+- `components/tele_cafezinho/include/tele_cafezinho.h`: public lifecycle and state API used by `main`.
+- `components/tele_cafezinho/tele_cafezinho.c`: component orchestration, cached state, combined state calculation, indicator updates, and calls into config/status/MQTT/GPIO/commands helpers.
+- `components/tele_cafezinho/tele_cafezinho_config.c`: `tele_config` field registration and typed read helpers.
+- `components/tele_cafezinho/tele_cafezinho_status.c`: read-only `tele_status` field registration backed by cached domain state.
+- `components/tele_cafezinho/tele_cafezinho_mqtt.c`: TeleCafezinho shared-topic payload build/parse, subscription handler, publish helper, and local active republish scheduling.
+- `components/tele_cafezinho/tele_cafezinho_peers.c`: fixed-size peer cache, group filtering, sequence handling, active count, and TTL expiration.
+- `components/tele_cafezinho/tele_cafezinho_gpio.c`: first local signal source using GPIO polling/debounce.
+- `components/tele_cafezinho/tele_cafezinho_commands.c`: operational and test commands.
+- `managed_components/tele_mqtt/include/tele_mqtt.h`: generic `tele_mqtt_get_device_id()` declaration.
+- `managed_components/tele_mqtt/tele_mqtt.c`: generic `tele_mqtt_get_device_id()` implementation.
+- `main/app_indicators.c`: semantic `telecafe.*` indicator source/events.
+- `main/main.c`: boot order wiring, with `tele_cafezinho_start()` before `tele_presence_start()`.
 
 ---
 
@@ -106,7 +129,7 @@ idf_component_register(
 )
 ```
 
-Adjust dependencies if the local repository names differ.
+This is a local project component under `components/`, not a managed dependency.
 
 - [ ] **Step 4: Wire component into app build**
 
@@ -114,16 +137,18 @@ Add `tele_cafezinho` to `main/CMakeLists.txt` `REQUIRES`.
 
 - [ ] **Step 5: Start component from app boot**
 
-In `main/main.c`, call `tele_cafezinho_start()` after `tele_presence_start()` or after MQTT bootstrap is initialized enough for shared-topic registration.
+In `main/main.c`, include the new header and call `tele_cafezinho_start()` after `connectivity_controller_start()` and before `tele_presence_start()`. This lets config/status/commands and shared-topic subscriptions be registered before `tele_mqtt_start()` builds manifests and starts the client.
 
 Recommended first integration:
 
 ```c
-ESP_ERROR_CHECK(tele_presence_start());
+ESP_ERROR_CHECK(connectivity_controller_start());
 ESP_ERROR_CHECK(tele_cafezinho_start());
+maybe_start_ca_updater_boot_task();
+ESP_ERROR_CHECK(tele_presence_start());
 ```
 
-If shared-topic registration must happen before MQTT client connection, confirm that `tele_mqtt_subscribe_shared()` supports registration before the client is connected.
+`tele_mqtt_subscribe_shared()` already supports registration before the MQTT client is connected; this order relies on that existing contract.
 
 - [ ] **Step 6: Build**
 
@@ -282,7 +307,7 @@ Callbacks must not allocate large buffers, block on MQTT, or read GPIO directly.
 
 - [ ] **Step 3: Register status at component start**
 
-`tele_cafezinho_start()` must call `tele_cafezinho_status_register()` after config registration and before MQTT connection if possible.
+`tele_cafezinho_start()` must call `tele_cafezinho_status_register()` after config registration. Because `main/main.c` starts `tele_cafezinho` before `tele_presence_start()`, these fields are registered before `tele_mqtt_start()` builds MQTT state, heartbeat, and manifest payloads.
 
 - [ ] **Step 4: Verify state and heartbeat payloads**
 
@@ -290,7 +315,147 @@ After flashing, verify that `state` and `heartbeat` include the selected `teleca
 
 ---
 
-### Task 5: Shared MQTT Payload Build And Parse
+### Task 5: Generic MQTT Device ID Getter
+
+**Files:**
+- Modify: `managed_components/tele_mqtt/include/tele_mqtt.h`
+- Modify: `managed_components/tele_mqtt/tele_mqtt.c`
+- Modify: `managed_components/tele_mqtt/test/tele_mqtt_shared_topic_test.c`
+
+- [ ] **Step 1: Add public API declaration**
+
+Add this declaration to `managed_components/tele_mqtt/include/tele_mqtt.h` near the other public getters:
+
+```c
+esp_err_t tele_mqtt_get_device_id(char *out, size_t out_size);
+```
+
+Contract:
+
+- returns `ESP_ERR_INVALID_ARG` when `out == NULL` or `out_size == 0`;
+- returns `ESP_ERR_INVALID_STATE` when the device ID has not been generated yet;
+- copies the current MQTT device ID into `out` with null termination;
+- returns `ESP_ERR_INVALID_SIZE` when `out_size` is too small for the full ID plus null terminator;
+- does not expose mutable internal storage.
+
+- [ ] **Step 2: Write host test for the getter**
+
+Extend `managed_components/tele_mqtt/test/tele_mqtt_shared_topic_test.c` with a focused test:
+
+```c
+static void test_get_device_id_contract(void)
+{
+    char out[64] = {0};
+
+    tele_mqtt_host_test_reset();
+    assert(tele_mqtt_get_device_id(NULL, sizeof(out)) == ESP_ERR_INVALID_ARG);
+    assert(tele_mqtt_get_device_id(out, 0) == ESP_ERR_INVALID_ARG);
+    assert(tele_mqtt_get_device_id(out, sizeof(out)) == ESP_ERR_INVALID_STATE);
+
+    tele_mqtt_host_test_set_device_id("TCafe-A1B2C3");
+    assert(tele_mqtt_get_device_id(out, sizeof(out)) == ESP_OK);
+    assert(strcmp(out, "TCafe-A1B2C3") == 0);
+    assert(tele_mqtt_get_device_id(out, 4) == ESP_ERR_INVALID_SIZE);
+}
+```
+
+Add this host-only helper declaration to `managed_components/tele_mqtt/include/tele_mqtt.h` inside the existing `#ifdef TELE_MQTT_HOST_TEST` section:
+
+```c
+void tele_mqtt_host_test_set_device_id(const char *device_id);
+```
+
+Call `test_get_device_id_contract()` from `main()` in the same test file.
+
+- [ ] **Step 3: Run test and verify it fails before implementation**
+
+Run:
+
+```bash
+gcc -DTELE_MQTT_HOST_TEST -DESP_FAIL=0x106 \
+    -Imanaged_components/tele_mqtt/include \
+    -Imanaged_components/tele_config/test \
+    -Imanaged_components/espressif__cjson/cJSON \
+    managed_components/tele_mqtt/test/tele_mqtt_shared_topic_test.c \
+    managed_components/tele_mqtt/tele_mqtt.c \
+    -o /tmp/tele_mqtt_shared_topic_test && /tmp/tele_mqtt_shared_topic_test
+```
+
+The `-DESP_FAIL=0x106` define is only needed because the current host `esp_err.h` stub in `managed_components/tele_config/test/esp_err.h` does not define `ESP_FAIL`; remove the command-line define if the stub is updated.
+
+Expected: FAIL because `tele_mqtt_get_device_id()` is declared but not implemented.
+
+- [ ] **Step 4: Implement getter in `tele_mqtt.c`**
+
+Implement after the existing public getter functions:
+
+```c
+esp_err_t tele_mqtt_get_device_id(char *out, size_t out_size)
+{
+    if (!out || out_size == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (s_device_id[0] == '\0') {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    size_t len = strlen(s_device_id);
+    if (out_size <= len) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    memcpy(out, s_device_id, len + 1);
+    return ESP_OK;
+}
+```
+
+If `s_device_id` is currently compiled only outside `TELE_MQTT_HOST_TEST`, move its declaration outside the `#ifndef TELE_MQTT_HOST_TEST` block so host tests can exercise the getter without duplicating identity logic.
+
+Add the host helper near the existing host helpers in `tele_mqtt.c`:
+
+```c
+#ifdef TELE_MQTT_HOST_TEST
+void tele_mqtt_host_test_set_device_id(const char *device_id)
+{
+    if (!device_id) {
+        s_device_id[0] = '\0';
+        return;
+    }
+    snprintf(s_device_id, sizeof(s_device_id), "%s", device_id);
+}
+#endif
+```
+
+Update `tele_mqtt_host_test_reset()` to clear `s_device_id[0]`.
+
+- [ ] **Step 5: Run getter test and build firmware**
+
+Run:
+
+```bash
+gcc -DTELE_MQTT_HOST_TEST -DESP_FAIL=0x106 \
+    -Imanaged_components/tele_mqtt/include \
+    -Imanaged_components/tele_config/test \
+    -Imanaged_components/espressif__cjson/cJSON \
+    managed_components/tele_mqtt/test/tele_mqtt_shared_topic_test.c \
+    managed_components/tele_mqtt/tele_mqtt.c \
+    -o /tmp/tele_mqtt_shared_topic_test && /tmp/tele_mqtt_shared_topic_test
+```
+
+Expected: exit code 0.
+
+Then run:
+
+```bash
+idf.py build
+```
+
+Expected: build exits 0 and `tele_mqtt_get_device_id()` is available to local components. Keep the patch generic enough to upstream to TeleSystem.
+
+---
+
+### Task 6: Shared MQTT Payload Build And Parse
 
 **Files:**
 - Create: `components/tele_cafezinho/tele_cafezinho_mqtt.c`
@@ -319,7 +484,7 @@ seq
 ttl_s
 ```
 
-Use the TeleSystem MQTT device ID if available through public `tele_mqtt` API. If no getter exists, add a generic getter to `tele_mqtt` in a separate small patch or pass the device ID into `tele_cafezinho` from app bootstrap. Do not duplicate MAC formatting logic inside `tele_cafezinho` unless there is no clean existing API.
+Use `tele_mqtt_get_device_id()` from Task 5. If it returns `ESP_ERR_INVALID_STATE`, payload building must fail and log a warning; do not duplicate MAC formatting logic inside `tele_cafezinho`.
 
 - [ ] **Step 2: Implement payload parser**
 
@@ -367,11 +532,22 @@ gcc -DTELE_CAFEZINHO_HOST_TEST \
     -o /tmp/tele_cafezinho_mqtt_payload_test && /tmp/tele_cafezinho_mqtt_payload_test
 ```
 
-Adjust includes and stubs for cJSON as needed.
+Use the same cJSON include path used by the repository-managed cJSON component:
+
+```bash
+gcc -DTELE_CAFEZINHO_HOST_TEST \
+    -Icomponents/tele_cafezinho/include \
+    -Imanaged_components/tele_config/test \
+    -Imanaged_components/espressif__cjson/cJSON \
+    components/tele_cafezinho/test/tele_cafezinho_mqtt_payload_test.c \
+    components/tele_cafezinho/tele_cafezinho_mqtt.c \
+    managed_components/espressif__cjson/cJSON/cJSON.c \
+    -o /tmp/tele_cafezinho_mqtt_payload_test && /tmp/tele_cafezinho_mqtt_payload_test
+```
 
 ---
 
-### Task 6: Peer Cache And TTL Expiration
+### Task 7: Peer Cache And TTL Expiration
 
 **Files:**
 - Create: `components/tele_cafezinho/tele_cafezinho_peers.c`
@@ -433,7 +609,7 @@ Test:
 
 ---
 
-### Task 7: Shared Topic Integration
+### Task 8: Shared Topic Integration
 
 **Files:**
 - Modify: `components/tele_cafezinho/tele_cafezinho_mqtt.c`
@@ -481,7 +657,7 @@ Whenever local state changes, peer cache changes, or peer expiration occurs, rec
 
 ---
 
-### Task 8: GPIO Input Source
+### Task 9: GPIO Input Source
 
 **Files:**
 - Create: `components/tele_cafezinho/tele_cafezinho_gpio.c`
@@ -491,7 +667,7 @@ Whenever local state changes, peer cache changes, or peer expiration occurs, rec
 
 - [ ] **Step 1: Configure GPIO when enabled**
 
-If `telecafe.signal_source == "gpio"` and `telecafe.gpio_num >= 0`, configure GPIO as input with pull mode appropriate for the hardware default.
+If `telecafe.signal_source == "gpio"` and `telecafe.gpio_num >= 0`, configure GPIO as input with internal pull-up and pull-down disabled in the first version. The hardware must provide the electrical idle level, and `telecafe.gpio_active_level` selects active-high or active-low interpretation.
 
 Recommended first version:
 
@@ -535,7 +711,7 @@ Flash two devices configured with the same group and verify:
 
 ---
 
-### Task 9: LED Indicator Events
+### Task 10: LED Indicator Events
 
 **Files:**
 - Modify: `main/app_indicators.c`
@@ -607,7 +783,7 @@ Verify:
 
 ---
 
-### Task 10: Commands For Test And Operation
+### Task 11: Commands For Test And Operation
 
 **Files:**
 - Create: `components/tele_cafezinho/tele_cafezinho_commands.c`
@@ -679,7 +855,7 @@ After flashing, verify `{base_topic}/{device_id}/meta/commands` includes the thr
 
 ---
 
-### Task 11: Documentation
+### Task 12: Documentation
 
 **Files:**
 - Create: `docs/tele_cafezinho.md`
@@ -729,7 +905,7 @@ Add `docs/tele_cafezinho.md` under a product/domain-specific section, not under 
 
 ---
 
-### Task 12: Version, Build, And End-To-End Verification
+### Task 13: Version, Build, And End-To-End Verification
 
 **Files:**
 - Modify: `main/app_firmware_version.h`
@@ -739,11 +915,11 @@ Add `docs/tele_cafezinho.md` under a product/domain-specific section, not under 
 Update version label to describe the feature, for example:
 
 ```c
-#define APP_FIRMWARE_VERSION_SEMVER "0.6.00"
+#define APP_FIRMWARE_VERSION_SEMVER "0.2.00"
 #define APP_FIRMWARE_VERSION_LABEL "TeleCafezinho domain component"
 ```
 
-Use the project’s real versioning policy if different.
+Use the project’s real versioning policy if different; this repository is currently at `0.1.00`, so `0.2.00` is the expected next feature version unless a release branch says otherwise.
 
 - [ ] **Step 2: Run host tests**
 
@@ -871,6 +1047,7 @@ Expected:
 ## Acceptance Criteria
 
 - `tele_mqtt` is used only through its generic shared-topic API.
+- `tele_mqtt` exposes `tele_mqtt_get_device_id()` as a generic upstreamable TeleSystem API, with no TeleCafezinho-specific behavior.
 - `tele_cafezinho` contains all product-specific business logic.
 - The normal per-device MQTT topic contract remains unchanged.
 - `telecafe.*` config fields appear in `meta/config`.
