@@ -5,12 +5,40 @@
 #include "tele_channels.h"
 #include "tele_config.h"
 
+#ifndef CONFIG_TELE_CAFEZINHO_DEFAULT_GROUP
+#define CONFIG_TELE_CAFEZINHO_DEFAULT_GROUP "default"
+#endif
+
+#ifndef CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_SOURCE
+#define CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_SOURCE "gpio"
+#endif
+
+#ifndef CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_NUM
+#define CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_NUM -1
+#endif
+
+#ifndef CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_ACTIVE_LEVEL
+#define CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_ACTIVE_LEVEL 1
+#endif
+
+#ifndef CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_DEBOUNCE_MS
+#define CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_DEBOUNCE_MS 150
+#endif
+
+#ifndef CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_TTL_S
+#define CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_TTL_S 20
+#endif
+
+#ifndef CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_PUBLISH_INTERVAL_S
+#define CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_PUBLISH_INTERVAL_S 5
+#endif
+
 static const tele_config_field_t s_fields[] = {
     {
         .id = TELE_CAFEZINHO_CONFIG_ID_GROUP,
         .nvs_key = "tc_group",
         .type = TELE_CONFIG_TYPE_STRING,
-        .default_value.string = "default",
+        .default_value.string = CONFIG_TELE_CAFEZINHO_DEFAULT_GROUP,
         .min_len = 1,
         .max_len = 31,
         .channel_flags = TELE_CHANNEL_FLAG_MQTT,
@@ -19,7 +47,7 @@ static const tele_config_field_t s_fields[] = {
         .id = TELE_CAFEZINHO_CONFIG_ID_SIGNAL_SOURCE,
         .nvs_key = "tc_src",
         .type = TELE_CONFIG_TYPE_STRING,
-        .default_value.string = "gpio",
+        .default_value.string = CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_SOURCE,
         .min_len = 1,
         .max_len = 15,
         .channel_flags = TELE_CHANNEL_FLAG_MQTT,
@@ -29,7 +57,7 @@ static const tele_config_field_t s_fields[] = {
         .id = TELE_CAFEZINHO_CONFIG_ID_GPIO_NUM,
         .nvs_key = "tc_gpio",
         .type = TELE_CONFIG_TYPE_I32,
-        .default_value.i32 = -1,
+        .default_value.i32 = CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_NUM,
         .min.i32 = -1,
         .max.i32 = 48,
         .channel_flags = TELE_CHANNEL_FLAG_MQTT,
@@ -39,7 +67,7 @@ static const tele_config_field_t s_fields[] = {
         .id = TELE_CAFEZINHO_CONFIG_ID_GPIO_ACTIVE_LEVEL,
         .nvs_key = "tc_level",
         .type = TELE_CONFIG_TYPE_I32,
-        .default_value.i32 = 1,
+        .default_value.i32 = CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_ACTIVE_LEVEL,
         .min.i32 = 0,
         .max.i32 = 1,
         .channel_flags = TELE_CHANNEL_FLAG_MQTT,
@@ -49,7 +77,7 @@ static const tele_config_field_t s_fields[] = {
         .id = TELE_CAFEZINHO_CONFIG_ID_GPIO_DEBOUNCE_MS,
         .nvs_key = "tc_deb",
         .type = TELE_CONFIG_TYPE_U32,
-        .default_value.u32 = 150,
+        .default_value.u32 = CONFIG_TELE_CAFEZINHO_DEFAULT_GPIO_DEBOUNCE_MS,
         .min.u32 = 20,
         .max.u32 = 5000,
         .channel_flags = TELE_CHANNEL_FLAG_MQTT,
@@ -59,7 +87,7 @@ static const tele_config_field_t s_fields[] = {
         .id = TELE_CAFEZINHO_CONFIG_ID_SIGNAL_TTL_S,
         .nvs_key = "tc_ttl",
         .type = TELE_CONFIG_TYPE_U32,
-        .default_value.u32 = 20,
+        .default_value.u32 = CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_TTL_S,
         .min.u32 = 2,
         .max.u32 = 3600,
         .channel_flags = TELE_CHANNEL_FLAG_MQTT,
@@ -68,7 +96,7 @@ static const tele_config_field_t s_fields[] = {
         .id = TELE_CAFEZINHO_CONFIG_ID_SIGNAL_PUBLISH_INTERVAL_S,
         .nvs_key = "tc_pubint",
         .type = TELE_CONFIG_TYPE_U32,
-        .default_value.u32 = 5,
+        .default_value.u32 = CONFIG_TELE_CAFEZINHO_DEFAULT_SIGNAL_PUBLISH_INTERVAL_S,
         .min.u32 = 1,
         .max.u32 = 3600,
         .channel_flags = TELE_CHANNEL_FLAG_MQTT,

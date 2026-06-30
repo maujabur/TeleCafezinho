@@ -1,0 +1,60 @@
+menu "TeleCafezinho Domain Config"
+
+config TELE_CAFEZINHO_DEFAULT_GROUP
+    string "Default group"
+    default "default"
+    help
+        Grupo inicial usado pelo componente TeleCafezinho. Pode ser alterado
+        em runtime via tele_config/MQTT e persistido em NVS.
+
+config TELE_CAFEZINHO_DEFAULT_SIGNAL_SOURCE
+    string "Default signal source"
+    default "gpio"
+    help
+        Fonte inicial do sinal local. A primeira fase suporta "gpio".
+
+config TELE_CAFEZINHO_DEFAULT_GPIO_NUM
+    int "Default signal GPIO number"
+    range -1 48
+    default -1
+    help
+        GPIO inicial usada como entrada do sinal local. Use -1 para deixar a
+        entrada GPIO desabilitada ate configuracao runtime.
+
+config TELE_CAFEZINHO_DEFAULT_GPIO_ACTIVE_LEVEL
+    int "Default GPIO active level (1=high, 0=low)"
+    range 0 1
+    default 1
+    help
+        Nivel logico que representa sinal local ativo.
+
+config TELE_CAFEZINHO_DEFAULT_GPIO_DEBOUNCE_MS
+    int "Default GPIO debounce time (ms)"
+    range 20 5000
+    default 150
+    help
+        Tempo minimo em estado estavel antes de aceitar uma mudanca de GPIO.
+
+config TELE_CAFEZINHO_DEFAULT_SIGNAL_TTL_S
+    int "Default shared signal TTL (seconds)"
+    range 2 3600
+    default 20
+    help
+        Tempo que um peer remoto permanece ativo sem receber novo publish.
+
+config TELE_CAFEZINHO_DEFAULT_SIGNAL_PUBLISH_INTERVAL_S
+    int "Default active republish interval (seconds)"
+    range 1 3600
+    default 5
+    help
+        Intervalo de republicacao enquanto o sinal local estiver ativo.
+        Deve ser menor que o TTL configurado.
+
+config TELE_CAFEZINHO_MAX_PEERS
+    int "Maximum active peer cache entries"
+    range 1 64
+    default 16
+    help
+        Tamanho maximo do cache fixo de peers remotos.
+
+endmenu
