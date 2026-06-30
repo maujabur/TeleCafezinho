@@ -36,7 +36,7 @@ static const tele_indicator_event_t s_indicator_events[] = {
         .id = "system.boot",
         .output_id = TELE_INDICATOR_DEFAULT_OUTPUT_ID,
         .priority = 10,
-        .duration_ms = 0,
+        .duration_ms = 1500,
         .effect = {
             .id = TELE_SIGNAL_EFFECT_BREATH,
             .color_a = {.red = 0, .green = 0, .blue = 255},
@@ -48,7 +48,7 @@ static const tele_indicator_event_t s_indicator_events[] = {
     {
         .id = "wifi.connecting",
         .output_id = TELE_INDICATOR_DEFAULT_OUTPUT_ID,
-        .priority = 20,
+        .priority = 85,
         .duration_ms = 0,
         .effect = {
             .id = TELE_SIGNAL_EFFECT_BLINK,
@@ -62,7 +62,7 @@ static const tele_indicator_event_t s_indicator_events[] = {
     {
         .id = "wifi.provisioning",
         .output_id = TELE_INDICATOR_DEFAULT_OUTPUT_ID,
-        .priority = 30,
+        .priority = 90,
         .duration_ms = 0,
         .effect = {
             .id = TELE_SIGNAL_EFFECT_ALTERNATE,
@@ -78,11 +78,13 @@ static const tele_indicator_event_t s_indicator_events[] = {
         .id = "wifi.connected",
         .output_id = TELE_INDICATOR_DEFAULT_OUTPUT_ID,
         .priority = 15,
-        .duration_ms = 1500,
+        .duration_ms = 0,
         .effect = {
-            .id = TELE_SIGNAL_EFFECT_SOLID,
+            .id = TELE_SIGNAL_EFFECT_BLINK,
             .color_a = {.red = 0, .green = 255, .blue = 0},
-            .brightness = 80,
+            .time_a_ms = 30,
+            .time_b_ms = 7000,
+            .brightness = 16,
             .target_mask = TELE_SIGNAL_TARGET_ALL,
         },
     },
