@@ -22,7 +22,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 6.0.0
+    version: 6.2.0
   status_led:
     component_hash: a42169eb6374843a3ad5b179a289256be291ef8353553794bfd4ed160184a652
     dependencies:
