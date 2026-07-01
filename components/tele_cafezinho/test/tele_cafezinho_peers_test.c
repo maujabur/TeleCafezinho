@@ -87,9 +87,30 @@ static void test_expiration(void)
     assert(tele_cafezinho_peers_active_count() == 0);
 }
 
+static void test_accepts_rebooted_peer_after_expiration(void)
+{
+    tele_cafezinho_peers_clear();
+    tele_cafezinho_signal_msg_t current = msg("mesa-01", "peer-a", true, 8, 2);
+
+    assert(tele_cafezinho_peers_apply_message(&current,
+                                              "self",
+                                              "mesa-01",
+                                              1000) == ESP_OK);
+    assert(tele_cafezinho_peers_active_count() == 1);
+    assert(tele_cafezinho_peers_expire(3000) == 0);
+
+    current = msg("mesa-01", "peer-a", true, 1, 2);
+    assert(tele_cafezinho_peers_apply_message(&current,
+                                              "self",
+                                              "mesa-01",
+                                              3500) == ESP_OK);
+    assert(tele_cafezinho_peers_active_count() == 1);
+}
+
 int main(void)
 {
     test_filters_and_counts_peers();
     test_expiration();
+    test_accepts_rebooted_peer_after_expiration();
     return 0;
 }

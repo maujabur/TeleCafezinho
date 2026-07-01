@@ -114,7 +114,7 @@ uint32_t tele_cafezinho_peers_expire(int64_t now_ms)
 {
     for (size_t i = 0; i < CONFIG_TELE_CAFEZINHO_MAX_PEERS; ++i) {
         if (s_peers[i].used && s_peers[i].active && now_ms >= s_peers[i].expires_at_ms) {
-            s_peers[i].active = false;
+            memset(&s_peers[i], 0, sizeof(s_peers[i]));
         }
     }
     return tele_cafezinho_peers_active_count();
