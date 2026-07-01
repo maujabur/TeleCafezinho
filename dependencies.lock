@@ -32,7 +32,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/status_led
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_artifacts:
     component_hash: a359009894be47e111eef611af3fa5521051b1e686b3aa031321dcdf578fbb03
     dependencies:
@@ -42,7 +42,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_artifacts
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_boot_config_button:
     component_hash: 7d58d0d15f897383421fb5b90fe2e32298a1d36044179afc2ae6b65d1e809706
     dependencies:
@@ -52,7 +52,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_boot_config_button
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_ca_store:
     component_hash: ccaae82e1c47370690849072a14369edc54130b525b018c26f29d44a555beb57
     dependencies:
@@ -62,7 +62,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_ca_store
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_ca_updater:
     component_hash: 35d9394f586dcfcf45c0d8ba5c5ccc47ed5c10ebe011a9a2e4503b3420bdd0de
     dependencies:
@@ -72,7 +72,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_ca_updater
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_channels:
     component_hash: c7d3200bc940d7c3c94b93efd3d2e68abf49d03261a6e9624bd1c7bc164cd2fd
     dependencies:
@@ -82,7 +82,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_channels
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_commands:
     component_hash: 64797eb7cf146237a7100d84703edc487087debbacc4d8367de08d271f418d6c
     dependencies:
@@ -94,7 +94,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_commands
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_config:
     component_hash: a21e2f50f0cf091cb2c891f7f02a26ea37de60aa1ea5cb02d46ccda52c4bcfdb
     dependencies:
@@ -106,7 +106,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_config
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_core_commands:
     component_hash: 16ee577a04a8f3715801290c0014cba205d5418848bc9553062096edea74aa33
     dependencies:
@@ -118,7 +118,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_core_commands
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_firmware_portal_ota:
     component_hash: 1d46b8b2f3090ab9ed91bfbcae09b7b2dd94a761e0a74faf3d50f8baad218c95
     dependencies:
@@ -130,7 +130,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_firmware_portal_ota
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_indicator:
     component_hash: f735d40c09567ad07901af1979ce5ea4407b8b973f78a5eda9d82698aec70aec
     dependencies:
@@ -140,7 +140,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_indicator
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_manifest:
     component_hash: 6b545684653d76dc8e78c7c558e9751ed04c13360913281ace2fa43836be6a59
     dependencies:
@@ -152,9 +152,9 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_manifest
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_mqtt:
-    component_hash: a4f34909e994536b05a779d25697e2e7dd351134a7f4f6c788b79a5725f548d2
+    component_hash: 34ad62e1657d60d920aeae98baf640eb6e31e58b5fd0075257d3f6678197efe7
     dependencies:
     - name: idf
       version: '>=5.3'
@@ -166,7 +166,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_mqtt
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal:
     component_hash: 4f842725885b1e56067d485626ae9907b3c78f7ebc2466845565b8c0dc1e7941
     dependencies:
@@ -176,7 +176,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal_assets:
     component_hash: 198b1ec482efe791918c886d856770efb4423afc84c58df40e3c6e6233d34e74
     dependencies:
@@ -186,7 +186,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal_assets
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal_captive:
     component_hash: f6f33ed3d2b8c51dfee0eb1392f2c9eb3dcc40556d10c9653c4c0d1492860045
     dependencies:
@@ -196,7 +196,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal_captive
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal_commands:
     component_hash: e90073adbec41605252e99a9c47e72eaf1dbd7cc3b5a7a380b67f1094159e7b7
     dependencies:
@@ -208,7 +208,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal_commands
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal_config:
     component_hash: e3a4ba67ea198fa388b7e16319ae779526039d666f9c6908d94384c5621b6ad3
     dependencies:
@@ -220,7 +220,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal_config
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal_core:
     component_hash: 818116f2dd5e6f8242bdfad9fe4f808f1801c5e8dee1e65795987c612e7e3ff5
     dependencies:
@@ -232,7 +232,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal_core
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal_logs:
     component_hash: 850a8e9174356027c87ef56ff0e6cc8b1bcf70d2ccb4f8a2d2811ebd2d6b7b55
     dependencies:
@@ -242,7 +242,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal_logs
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal_ota:
     component_hash: aa8dc1f3b414a9b416bf7edcb80db8133897e2f7d70308884b0caa52cb82cab5
     dependencies:
@@ -254,9 +254,9 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal_ota
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal_status:
-    component_hash: 96f4936f076df68c68cbcdb1e3564ed9756ac297998232a2dab54d6b583bbfcd
+    component_hash: 74fcd9ad98a54a05dcc1c47a6446028b41c2e8d7c6e2f6522e96a582f2934d4a
     dependencies:
     - name: idf
       version: '>=5.3'
@@ -266,7 +266,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal_status
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_portal_wifi:
     component_hash: dd01b583330bdf8fd464c5f8125836c2fb27d2bf5ed2ec496d2507fd26d98655
     dependencies:
@@ -278,7 +278,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_portal_wifi
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_presence:
     component_hash: 952c941637a281211c14668279a4ac5964be4bc0cafceb09009ed1d71a592a67
     dependencies:
@@ -290,7 +290,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_presence
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_signal:
     component_hash: fca7df8c2e229d0cf7b077bf78178b10e89f1db350441f6f9c0d70e209f46582
     dependencies:
@@ -300,7 +300,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_signal
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_status:
     component_hash: 78d24607e604b6a14b2e87572820b2847cbce67097557edfed7de44034d78ba9
     dependencies:
@@ -312,7 +312,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_status
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_system:
     component_hash: e5cbc1534b22c5f8d8934ffa7c03fcc20beff2ba464635ce66aa80c5bb098723
     dependencies:
@@ -322,7 +322,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_system
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_system_registry:
     component_hash: 2dc906ac4c05cf06191cd21e60d95882e489a9a865b4edf2bf99f7481b624e41
     dependencies:
@@ -334,7 +334,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_system_registry
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_time_sync:
     component_hash: 939fe78536b452df4dbfa51a9a1e1eb348f726a8b741affefa2a88f67a6e65b7
     dependencies:
@@ -344,7 +344,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_time_sync
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_wifi:
     component_hash: fe7867ef0fdf2a3987a561ca89094033ef138c47aeec198ce5cc5b91f54217d4
     dependencies:
@@ -354,7 +354,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_wifi
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
   tele_wifi_device_config:
     component_hash: 6c8cdca02625e4ff212beb955dba7d45979ee158803246bb20a7f335f2356f95
     dependencies:
@@ -364,7 +364,7 @@ dependencies:
       git: https://github.com/maujabur/TeleSystem.git
       path: components/tele_wifi_device_config
       type: git
-    version: 502b22923480205e1754618efa744e6477421349
+    version: afa35c5033fe3578da272cd11be3b3d0e1f7dd31
 direct_dependencies:
 - espressif/cjson
 - espressif/mqtt
