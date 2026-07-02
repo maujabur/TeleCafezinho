@@ -31,6 +31,7 @@
       <section class="panel">
         <h2>TeleCafezinho</h2>
         <div class="metrics">
+          <div class="metric"><span>Device ID</span><strong id="deviceId">--</strong></div>
           <div class="metric"><span>Grupo</span><strong id="telecafeGroup">--</strong></div>
           <div class="metric"><span>Origem local</span><strong id="telecafeSignalSource">--</strong></div>
           <div class="metric"><span>Estado combinado</span><strong id="telecafeCombinedState">--</strong></div>
@@ -150,6 +151,7 @@
             "Politica " + String(status.wifi_apsta_policy ?? "--") +
             " | " + String(status.wifi_apsta_grace_period_s ?? "--") + " s" +
             (status.wifi_apsta_auto_drop_pending ? " | drop pendente" : "");
+          document.getElementById("deviceId").textContent = status.device_id || "--";
           const telecafeGroup = statusValue(status, "telecafe.group", "");
           document.getElementById("telecafeGroup").textContent = telecafeGroup || "--";
           document.getElementById("telecafeSignalSource").textContent =
