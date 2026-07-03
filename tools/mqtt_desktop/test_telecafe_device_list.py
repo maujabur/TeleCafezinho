@@ -75,16 +75,13 @@ sys.modules.setdefault("paho.mqtt.client", paho_mqtt_client)
 
 from tools.mqtt_desktop.mqtt_control_center import (  # noqa: E402
     App,
-    DEFAULT_TELECAFE_GROUP_FIELD,
-    DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME,
-    DEFAULT_TELECAFE_SUMMARY_FIELDS,
+    DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS,
     DeviceInfo,
     MessageSnapshot,
+    custom_column_text,
+    device_display_sources_for_device,
     normalize_device_list_display_config,
     resolve_payload_field,
-    telecafe_display_sources_for_device,
-    telecafe_group_text,
-    telecafe_summary_text,
 )
 
 
@@ -92,17 +89,15 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
     def test_normalize_device_list_display_config_uses_defaults_for_missing_config(self):
         cfg = normalize_device_list_display_config({})
 
-        self.assertEqual(cfg["group_field"], DEFAULT_TELECAFE_GROUP_FIELD)
-        self.assertEqual(cfg["summary_column_name"], DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME)
-        self.assertEqual(cfg["summary_fields"], DEFAULT_TELECAFE_SUMMARY_FIELDS)
+        self.assertEqual(cfg["custom_columns"], DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS)
 
     def test_normalize_device_list_display_config_ignores_invalid_values(self):
         cfg = normalize_device_list_display_config(
             {
                 "device_list": {
-                    "group_field": "",
                     "custom_columns": [
                         {
+                            "id": "",
                             "column_name": 12,
                             "fields": ["telecafe.combined_state", 9, ""],
                         }
@@ -111,42 +106,57 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(cfg["group_field"], DEFAULT_TELECAFE_GROUP_FIELD)
-        self.assertEqual(cfg["summary_column_name"], DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME)
-        self.assertEqual(cfg["summary_fields"], ["telecafe.combined_state"])
+        self.assertEqual(cfg["custom_columns"], DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS)
 
-    def test_normalize_device_list_display_config_accepts_custom_column_section(self):
+    def test_normalize_device_list_display_config_accepts_multiple_custom_columns(self):
         cfg = normalize_device_list_display_config(
             {
                 "device_list": {
-                    "group_field": "telecafe.group",
                     "custom_columns": [
+                        {
+                            "id": "group",
+                            "column_name": "grupo",
+                            "role": "group",
+                            "empty": "sem grupo",
+                            "fields": ["telecafe.group"],
+                        },
                         {
                             "id": "telecafe",
                             "column_name": "indicacao",
-                            "fields": ["telecafe.combined_state"],
+                            "empty": "sem status",
+                            "fields": [
+                                {"id": "telecafe.combined_state", "label": ""},
+                                {"id": "telecafe.local_active", "label": "local"},
+                            ],
                         }
                     ],
                 }
             }
         )
 
-        self.assertEqual(cfg["summary_column_name"], "indicacao")
-        self.assertEqual(cfg["summary_fields"], ["telecafe.combined_state"])
+        self.assertEqual([column["id"] for column in cfg["custom_columns"]], ["group", "telecafe"])
+        self.assertEqual(cfg["custom_columns"][0]["role"], "group")
+        self.assertEqual(cfg["custom_columns"][0]["fields"], [{"id": "telecafe.group", "label": None}])
+        self.assertEqual(cfg["custom_columns"][1]["column_name"], "indicacao")
+        self.assertEqual(
+            cfg["custom_columns"][1]["fields"],
+            [
+                {"id": "telecafe.combined_state", "label": ""},
+                {"id": "telecafe.local_active", "label": "local"},
+            ],
+        )
 
-    def test_normalize_device_list_display_config_keeps_legacy_telecafe_section(self):
+    def test_normalize_device_list_display_config_ignores_legacy_telecafe_section(self):
         cfg = normalize_device_list_display_config(
             {
                 "telecafe": {
-                    "group_field": "telecafe.group",
                     "column_name": "legacy",
                     "summary_fields": ["telecafe.signal_seq"],
                 }
             }
         )
 
-        self.assertEqual(cfg["summary_column_name"], "legacy")
-        self.assertEqual(cfg["summary_fields"], ["telecafe.signal_seq"])
+        self.assertEqual(cfg["custom_columns"], DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS)
 
     def test_resolve_payload_field_supports_flat_and_nested_keys(self):
         flat = {"telecafe.group": "mesa-01"}
@@ -179,19 +189,25 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
             payload_raw="{}",
         )
 
-        sources = telecafe_display_sources_for_device(device)
+        sources = device_display_sources_for_device(device)
 
         self.assertEqual(resolve_payload_field(sources[0].payload, "telecafe.combined_state"), "local_active")
-        self.assertEqual(telecafe_group_text(device, "telecafe.group"), "mesa-01")
+        self.assertEqual(custom_column_text(sources, DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS[0]), "mesa-01")
 
     def test_group_text_returns_sem_grupo_when_missing(self):
-        self.assertEqual(telecafe_group_text(DeviceInfo(device_id="dev-1"), "telecafe.group"), "sem grupo")
-
-    def test_default_summary_renders_configured_field_values(self):
-        fields = DEFAULT_TELECAFE_SUMMARY_FIELDS
-
         self.assertEqual(
-            telecafe_summary_text(
+            custom_column_text(device_display_sources_for_device(DeviceInfo(device_id="dev-1")), DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS[0]),
+            "sem grupo",
+        )
+
+    def test_single_field_custom_column_renders_value_only(self):
+        text = custom_column_text([{"telecafe.group": "mesa-01"}], DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS[0])
+
+        self.assertEqual(text, "mesa-01")
+
+    def test_multi_field_custom_column_uses_compact_labels(self):
+        self.assertEqual(
+            custom_column_text(
                 [
                     {
                         "telecafe.combined_state": "idle",
@@ -199,16 +215,25 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
                         "telecafe.remote_active_count": 0,
                     }
                 ],
-                fields,
+                DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS[1],
             ),
-            "combined_state=idle | local_active=False | remote_active_count=0",
+            "idle | local=False | rem=0",
         )
-        self.assertEqual(telecafe_summary_text([{}], fields), "sem status")
+        self.assertEqual(custom_column_text([{}], DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS[1]), "sem status")
 
-    def test_custom_summary_fields_render_field_value_pairs(self):
-        text = telecafe_summary_text(
+    def test_custom_column_without_labels_uses_field_tail(self):
+        text = custom_column_text(
             [{"telecafe.combined_state": "idle", "telecafe.signal_seq": 42}],
-            ["telecafe.combined_state", "telecafe.signal_seq"],
+            {
+                "id": "telecafe",
+                "column_name": "telecafe",
+                "empty": "sem status",
+                "role": "",
+                "fields": [
+                    {"id": "telecafe.combined_state", "label": None},
+                    {"id": "telecafe.signal_seq", "label": None},
+                ],
+            },
         )
 
         self.assertEqual(text, "combined_state=idle | signal_seq=42")
@@ -217,26 +242,38 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
 class TeleCafeDeviceListMethodTest(unittest.TestCase):
     def make_app_shell(self):
         app = object.__new__(App)
-        app.telecafe_display_config = normalize_device_list_display_config(
+        app.device_list_display_config = normalize_device_list_display_config(
             {
                 "device_list": {
-                    "group_field": "telecafe.group",
                     "custom_columns": [
+                        {
+                            "id": "group",
+                            "column_name": "grupo",
+                            "role": "group",
+                            "empty": "sem grupo",
+                            "fields": ["telecafe.group"],
+                        },
                         {
                             "id": "telecafe",
                             "column_name": "indicacao",
-                            "fields": DEFAULT_TELECAFE_SUMMARY_FIELDS,
+                            "empty": "sem status",
+                            "fields": [
+                                {"id": "telecafe.combined_state", "label": ""},
+                                {"id": "telecafe.local_active", "label": "local"},
+                                {"id": "telecafe.remote_active_count", "label": "rem"},
+                            ],
                         }
                     ],
                 }
             }
         )
+        app.tree_heading_labels = {"presence": "estado", "group": "grupo", "telecafe": "indicacao"}
         app.pending_cmd_by_id = {}
         app.device_search_var = _FakeVar("")
         app.device_filter_var = _FakeVar("Todos")
         return app
 
-    def test_tree_values_include_group_and_telecafe_summary(self):
+    def test_tree_values_include_configured_custom_columns(self):
         app = self.make_app_shell()
         device = DeviceInfo(device_id="dev-1", fw="1.0")
         device.last_messages["state"] = MessageSnapshot(
@@ -253,7 +290,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
         _presence_key, values = app._tree_values_for_device(device)
 
         self.assertEqual(values[1], "mesa-01")
-        self.assertEqual(values[5], "combined_state=remote_active | remote_active_count=2")
+        self.assertEqual(values[2], "remote_active | rem=2")
 
     def test_tree_values_prefer_live_heartbeat_over_stale_state(self):
         app = self.make_app_shell()
@@ -281,7 +318,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
 
         _presence_key, values = app._tree_values_for_device(device)
 
-        self.assertEqual(values[5], "combined_state=local_active | local_active=True")
+        self.assertEqual(values[2], "local_active | local=True")
 
     def test_tree_values_choose_latest_timestamp_per_field(self):
         app = self.make_app_shell()
@@ -307,7 +344,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
 
         _presence_key, values = app._tree_values_for_device(device)
 
-        self.assertEqual(values[5], "combined_state=idle")
+        self.assertEqual(values[2], "idle")
 
     def test_manifest_values_prefer_live_heartbeat_over_stale_state(self):
         app = self.make_app_shell()
@@ -398,7 +435,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
 
     def test_search_matches_group_and_telecafe_summary(self):
         app = self.make_app_shell()
-        app.device_search_var = _FakeVar("remote_active_count=2")
+        app.device_search_var = _FakeVar("rem=2")
         device = DeviceInfo(device_id="dev-1", online=True)
         device.last_messages["state"] = MessageSnapshot(
             timestamp=datetime(2026, 7, 3),
@@ -415,7 +452,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
 
     def test_tooltip_text_describes_group_and_telecafe_columns(self):
         app = self.make_app_shell()
-        app.tree = _FakeTree(("presence", "group", "device_id", "age", "fw", "telecafe", "summary"))
+        app.tree = _FakeTree(("presence", "group", "telecafe", "device_id", "age", "fw", "summary"))
         app.devices = {"dev-1": DeviceInfo(device_id="dev-1")}
         app.devices["dev-1"].last_messages["state"] = MessageSnapshot(
             timestamp=datetime(2026, 7, 3),
@@ -428,7 +465,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
         )
 
         self.assertEqual(app._device_tree_cell_tooltip_text("dev-1", "#2"), "grupo: mesa-01")
-        self.assertEqual(app._device_tree_cell_tooltip_text("dev-1", "#6"), "indicacao: combined_state=local_active")
+        self.assertEqual(app._device_tree_cell_tooltip_text("dev-1", "#3"), "indicacao: local_active")
 
     def test_refresh_device_details_sets_group_and_telecafe_summary(self):
         app = self.make_app_shell()
@@ -485,7 +522,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
         self.assertEqual(app.detail_value_labels["group"].text, "mesa-01")
         self.assertEqual(
             app.detail_value_labels["telecafe_summary"].text,
-            "combined_state=mutual_active | remote_active_count=1",
+            "mutual_active | rem=1",
         )
 
 

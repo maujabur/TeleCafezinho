@@ -23,18 +23,29 @@ PENDING_COMMAND_TIMEOUT_SEC = 30
 MAX_LOG_LINES = 2000
 COMMAND_OPTION_PLACEHOLDER = "selecione..."
 COMMANDS_HIDDEN_FROM_COMMANDS_TAB = {"config/set", "config/reset"}
-DEFAULT_TELECAFE_GROUP_FIELD = "telecafe.group"
-DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME = "telecafe"
-DEFAULT_TELECAFE_SUMMARY_FIELDS = [
-    "telecafe.combined_state",
-    "telecafe.local_active",
-    "telecafe.remote_active_count",
+RESERVED_DEVICE_LIST_COLUMNS = {"presence", "device_id", "age", "fw", "summary"}
+DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS = [
+    {
+        "id": "group",
+        "column_name": "grupo",
+        "fields": [{"id": "telecafe.group", "label": None}],
+        "empty": "sem grupo",
+        "role": "group",
+        "width": 92,
+    },
+    {
+        "id": "telecafe",
+        "column_name": "telecafe",
+        "fields": [
+            {"id": "telecafe.combined_state", "label": ""},
+            {"id": "telecafe.local_active", "label": "local"},
+            {"id": "telecafe.remote_active_count", "label": "rem"},
+        ],
+        "empty": "sem status",
+        "role": "",
+        "width": 120,
+    },
 ]
-DEFAULT_TELECAFE_DISPLAY_CONFIG = {
-    "group_field": DEFAULT_TELECAFE_GROUP_FIELD,
-    "summary_column_name": DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME,
-    "summary_fields": DEFAULT_TELECAFE_SUMMARY_FIELDS,
-}
 
 
 def command_args_from_inputs(arg_specs: list[Dict[str, Any]], values: Dict[str, str]) -> Dict[str, Any]:
@@ -190,54 +201,99 @@ class PayloadSource:
 def normalize_device_list_display_config(raw_config: Any) -> Dict[str, Any]:
     root = raw_config if isinstance(raw_config, dict) else {}
     config = root.get("device_list") if isinstance(root.get("device_list"), dict) else None
-    legacy_config = root.get("telecafe") if isinstance(root.get("telecafe"), dict) else None
 
-    if config is not None:
-        group_source = config
-        custom_columns = config.get("custom_columns")
-        first_column = custom_columns[0] if isinstance(custom_columns, list) and custom_columns else {}
-        column_config = first_column if isinstance(first_column, dict) else {}
-        raw_fields = column_config.get("fields")
-    elif legacy_config is not None:
-        group_source = legacy_config
-        column_config = legacy_config
-        raw_fields = legacy_config.get("summary_fields")
-    else:
-        group_source = root
-        column_config = root
-        raw_fields = root.get("summary_fields")
+    custom_columns = []
+    seen_ids = set(RESERVED_DEVICE_LIST_COLUMNS)
+    if config is not None and isinstance(config.get("custom_columns"), list):
+        for index, raw_column in enumerate(config["custom_columns"], start=1):
+            column = _normalize_device_list_custom_column(raw_column, seen_ids, index)
+            if column is not None:
+                custom_columns.append(column)
+                seen_ids.add(column["id"])
 
-    if not isinstance(column_config, dict):
-        column_config = {}
+    if not custom_columns:
+        custom_columns = _copy_default_device_list_custom_columns()
 
-    config = group_source if isinstance(group_source, dict) else {}
-    group_field = config.get("group_field")
-    if not isinstance(group_field, str) or not group_field.strip():
-        group_field = DEFAULT_TELECAFE_GROUP_FIELD
-    else:
-        group_field = group_field.strip()
+    return {"custom_columns": custom_columns}
 
-    summary_column_name = column_config.get("column_name", column_config.get("summary_column_name"))
-    if not isinstance(summary_column_name, str) or not summary_column_name.strip():
-        summary_column_name = DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME
-    else:
-        summary_column_name = summary_column_name.strip()
 
-    summary_fields = []
+def _copy_default_device_list_custom_columns() -> list[Dict[str, Any]]:
+    copied = []
+    for column in DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS:
+        item = dict(column)
+        item["fields"] = [dict(field) for field in column["fields"]]
+        copied.append(item)
+    return copied
+
+
+def _normalize_device_list_custom_column(raw_column: Any, seen_ids: set[str], index: int) -> Optional[Dict[str, Any]]:
+    if not isinstance(raw_column, dict):
+        return None
+
+    column_id = raw_column.get("id")
+    if not isinstance(column_id, str) or not column_id.strip():
+        return None
+    column_id = column_id.strip()
+    if column_id in seen_ids:
+        return None
+
+    fields = []
+    raw_fields = raw_column.get("fields")
     if isinstance(raw_fields, list):
-        summary_fields = [item.strip() for item in raw_fields if isinstance(item, str) and item.strip()]
-    if not summary_fields:
-        summary_fields = list(DEFAULT_TELECAFE_SUMMARY_FIELDS)
+        for raw_field in raw_fields:
+            field = _normalize_device_list_custom_field(raw_field)
+            if field is not None:
+                fields.append(field)
+    if not fields:
+        return None
+
+    column_name = raw_column.get("column_name", raw_column.get("name"))
+    if not isinstance(column_name, str) or not column_name.strip():
+        column_name = column_id
+    else:
+        column_name = column_name.strip()
+
+    empty = raw_column.get("empty")
+    if not isinstance(empty, str):
+        empty = "sem dados"
+
+    role = raw_column.get("role")
+    role = role.strip() if isinstance(role, str) else ""
+
+    width = raw_column.get("width")
+    try:
+        width = int(width)
+    except (TypeError, ValueError):
+        width = 92 if role == "group" else 112
+    width = max(48, min(width, 420))
 
     return {
-        "group_field": group_field,
-        "summary_column_name": summary_column_name,
-        "summary_fields": summary_fields,
+        "id": column_id,
+        "column_name": column_name,
+        "fields": fields,
+        "empty": empty,
+        "role": role,
+        "width": width,
+        "order": index,
     }
 
 
-def normalize_telecafe_display_config(raw_config: Any) -> Dict[str, Any]:
-    return normalize_device_list_display_config({"telecafe": raw_config} if isinstance(raw_config, dict) else raw_config)
+def _normalize_device_list_custom_field(raw_field: Any) -> Optional[Dict[str, Any]]:
+    label = None
+    if isinstance(raw_field, str):
+        field_id = raw_field.strip()
+    elif isinstance(raw_field, dict):
+        raw_id = raw_field.get("id", raw_field.get("field"))
+        field_id = raw_id.strip() if isinstance(raw_id, str) else ""
+        if "label" in raw_field:
+            raw_label = raw_field.get("label")
+            label = raw_label.strip() if isinstance(raw_label, str) else None
+    else:
+        return None
+
+    if not field_id:
+        return None
+    return {"id": field_id, "label": label}
 
 
 def resolve_payload_field(payload: Dict[str, Any], field_id: str) -> Any:
@@ -253,7 +309,7 @@ def resolve_payload_field(payload: Dict[str, Any], field_id: str) -> Any:
     return current
 
 
-def telecafe_display_sources_for_device(device: DeviceInfo) -> list[PayloadSource]:
+def device_display_sources_for_device(device: DeviceInfo) -> list[PayloadSource]:
     sources: list[PayloadSource] = []
     for payload, timestamp in (
         _snapshot_payload_source(device, "heartbeat"),
@@ -301,19 +357,33 @@ def _cmd_out_result_payload(device: DeviceInfo) -> Dict[str, Any]:
     return result if isinstance(result, dict) else {}
 
 
-def telecafe_group_text(device: DeviceInfo, group_field: str) -> str:
-    value = _latest_payload_value(telecafe_display_sources_for_device(device), group_field)
-    return str(value) if value not in (None, "") else "sem grupo"
+def custom_column_text(sources: list[Any], column: Dict[str, Any]) -> str:
+    fields = column.get("fields")
+    if not isinstance(fields, list):
+        fields = []
+    empty = column.get("empty")
+    empty_text = empty if isinstance(empty, str) else "sem dados"
 
+    if len(fields) == 1:
+        field = fields[0]
+        field_id = field.get("id") if isinstance(field, dict) else ""
+        value = _latest_payload_value(sources, str(field_id))
+        return str(value) if value not in (None, "") else empty_text
 
-def telecafe_summary_text(sources: list[Any], summary_fields: list[str]) -> str:
-    values = {field_id: _latest_payload_value(sources, field_id) for field_id in summary_fields}
     parts = []
-    for field_id in summary_fields:
-        value = values.get(field_id)
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        field_id = str(field.get("id", ""))
+        value = _latest_payload_value(sources, field_id)
         if value not in (None, ""):
-            parts.append(f"{field_id.split('.')[-1]}={value}")
-    return " | ".join(parts) if parts else "sem status"
+            label = field.get("label")
+            if label == "":
+                parts.append(str(value))
+            else:
+                display_label = label if isinstance(label, str) and label else field_id.split(".")[-1]
+                parts.append(f"{display_label}={value}")
+    return " | ".join(parts) if parts else empty_text
 
 
 def _latest_payload_value(sources: list[Any], field_id: str) -> Any:
@@ -519,7 +589,7 @@ class App(ctk.CTk):
         self.tree_sort_column = "device_id"
         self.tree_sort_desc = False
         self.tree_heading_labels: Dict[str, str] = {}
-        self.telecafe_display_config = normalize_device_list_display_config({})
+        self.device_list_display_config = normalize_device_list_display_config({})
         self.status_icons: Dict[str, tk.PhotoImage] = {}
         self.device_tree_refresh_after_id: Optional[str] = None
         self.auto_connect_pending = False
@@ -665,7 +735,9 @@ class App(ctk.CTk):
         self.device_search_var.trace_add("write", self._on_device_filter_changed)
         self.device_filter_var.trace_add("write", self._on_device_filter_changed)
 
-        cols = ("presence", "group", "device_id", "age", "fw", "telecafe", "summary")
+        custom_columns = self._device_list_custom_columns()
+        custom_column_ids = tuple(column["id"] for column in custom_columns)
+        cols = ("presence", *custom_column_ids, "device_id", "age", "fw", "summary")
         self.tree = ttk.Treeview(devices_frame, columns=cols, show=("tree", "headings"), height=12)
         self.tree.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
         self.tree.bind("<<TreeviewSelect>>", self._on_select_device)
@@ -688,16 +760,17 @@ class App(ctk.CTk):
         self.tree.heading("#0", text="")
         self.tree.column("#0", width=28, minwidth=28, stretch=False, anchor="center")
 
-        widths = {"presence": 78, "group": 92, "device_id": 142, "age": 82, "fw": 72, "telecafe": 104, "summary": 260}
+        widths = {"presence": 78, "device_id": 142, "age": 82, "fw": 72, "summary": 260}
         heading_labels = {
             "device_id": "device_id",
             "presence": "estado",
-            "group": "grupo",
             "age": "idade",
             "fw": "fw",
-            "telecafe": str(self.telecafe_display_config["summary_column_name"]),
             "summary": "resumo",
         }
+        for column in custom_columns:
+            widths[column["id"]] = int(column.get("width", 112))
+            heading_labels[column["id"]] = str(column.get("column_name", column["id"]))
         self.tree_heading_labels = heading_labels
         for col in cols:
             self.tree.heading(col, text=heading_labels.get(col, col), command=lambda c=col: self._on_tree_heading_click(c))
@@ -2162,10 +2235,8 @@ class App(ctk.CTk):
         self.auto_connect_on_start_var.set(
             bool(config_data.get("auto_connect_on_start", self.auto_connect_on_start_var.get()))
         )
-        self.telecafe_display_config = normalize_device_list_display_config(config_data)
-        if "telecafe" in self.tree_heading_labels:
-            self.tree_heading_labels["telecafe"] = str(self.telecafe_display_config["summary_column_name"])
-            self._refresh_tree_headings()
+        self.device_list_display_config = normalize_device_list_display_config(config_data)
+        self._apply_device_list_column_config()
 
     def _auto_connect_if_configured(self):
         if self.auto_connect_pending and bool(self.auto_connect_on_start_var.get()) and not self.mqtt.connected:
@@ -2895,10 +2966,10 @@ class App(ctk.CTk):
         if column_name == "presence":
             _presence_key, presence_text = self._device_presence(device)
             return presence_text
-        if column_name == "group":
-            return f"grupo: {self._telecafe_group_for_device(device)}"
-        if column_name == "telecafe":
-            return f"{self.telecafe_display_config['summary_column_name']}: {self._telecafe_summary_for_device(device)}"
+        custom_column = self._custom_column_config(column_name)
+        if custom_column is not None:
+            label = str(custom_column.get("column_name", column_name))
+            return f"{label}: {self._custom_column_for_device(device, custom_column)}"
         if column_name == "device_id":
             return device.device_id
         if column_name == "fw":
@@ -3851,23 +3922,53 @@ class App(ctk.CTk):
                 ssid,
                 ip,
                 rssi,
-                self._telecafe_group_for_device(device),
-                self._telecafe_summary_for_device(device),
+                *self._custom_column_values_for_device(device),
                 self._device_summary(device),
             ]
         ).casefold()
         return search in haystack
 
+    def _device_list_custom_columns(self) -> list[Dict[str, Any]]:
+        config = getattr(self, "device_list_display_config", None)
+        if not isinstance(config, dict):
+            config = normalize_device_list_display_config({})
+        columns = config.get("custom_columns")
+        if not isinstance(columns, list):
+            return _copy_default_device_list_custom_columns()
+        return [column for column in columns if isinstance(column, dict) and isinstance(column.get("id"), str)]
+
+    def _device_list_tree_columns(self) -> tuple[str, ...]:
+        custom_column_ids = tuple(column["id"] for column in self._device_list_custom_columns())
+        return ("presence", *custom_column_ids, "device_id", "age", "fw", "summary")
+
+    def _custom_column_config(self, column_id: str) -> Optional[Dict[str, Any]]:
+        for column in self._device_list_custom_columns():
+            if column.get("id") == column_id:
+                return column
+        return None
+
+    def _group_custom_column(self) -> Optional[Dict[str, Any]]:
+        for column in self._device_list_custom_columns():
+            if column.get("role") == "group":
+                return column
+        return self._custom_column_config("group")
+
+    def _custom_column_for_device(self, device: DeviceInfo, column: Dict[str, Any]) -> str:
+        return custom_column_text(device_display_sources_for_device(device), column)
+
+    def _custom_column_values_for_device(self, device: DeviceInfo) -> list[str]:
+        return [self._custom_column_for_device(device, column) for column in self._device_list_custom_columns()]
+
     def _telecafe_group_for_device(self, device: DeviceInfo) -> str:
-        group = telecafe_group_text(device, str(self.telecafe_display_config["group_field"]))
-        device.group = "" if group == "sem grupo" else group
+        column = self._group_custom_column()
+        group = self._custom_column_for_device(device, column) if column else "sem grupo"
+        empty_text = str(column.get("empty", "sem grupo")) if column else "sem grupo"
+        device.group = "" if group == empty_text else group
         return group
 
     def _telecafe_summary_for_device(self, device: DeviceInfo) -> str:
-        return telecafe_summary_text(
-            telecafe_display_sources_for_device(device),
-            list(self.telecafe_display_config["summary_fields"]),
-        )
+        column = self._custom_column_config("telecafe")
+        return self._custom_column_for_device(device, column) if column else "sem status"
 
     def _device_summary(self, device: DeviceInfo) -> str:
         heartbeat = self._payload_for(device, "heartbeat")
@@ -3959,11 +4060,13 @@ class App(ctk.CTk):
             return device.last_seen or datetime.min
         if col == "fw":
             return (device.fw or "").casefold()
-        if col == "group":
-            group = self._telecafe_group_for_device(device)
-            return (group == "sem grupo", group.casefold(), device.device_id.casefold())
-        if col == "telecafe":
-            return self._telecafe_summary_for_device(device).casefold()
+        custom_column = self._custom_column_config(col)
+        if custom_column is not None:
+            value = self._custom_column_for_device(device, custom_column)
+            if custom_column.get("role") == "group":
+                empty_text = str(custom_column.get("empty", ""))
+                return (value == empty_text, value.casefold(), device.device_id.casefold())
+            return value.casefold()
         if col == "summary":
             return self._device_summary(device).casefold()
         return ""
@@ -3972,11 +4075,10 @@ class App(ctk.CTk):
         presence_key, presence_text = self._device_presence(device)
         values = (
             presence_text,
-            self._telecafe_group_for_device(device),
+            *self._custom_column_values_for_device(device),
             device.device_id,
             self._format_age(device.last_seen),
             device.fw,
-            self._telecafe_summary_for_device(device),
             self._device_summary(device),
         )
         return presence_key, values
@@ -3997,6 +4099,35 @@ class App(ctk.CTk):
                 arrow = "↓" if self.tree_sort_desc else "↑"
                 text = f"▶ {label} {arrow}"
             self.tree.heading(col, text=text, command=lambda c=col: self._on_tree_heading_click(c))
+
+    def _apply_device_list_column_config(self):
+        if not hasattr(self, "tree"):
+            return
+
+        columns = self._device_list_tree_columns()
+        self.tree.configure(columns=columns)
+
+        widths = {"presence": 78, "device_id": 142, "age": 82, "fw": 72, "summary": 260}
+        heading_labels = {
+            "presence": "estado",
+            "device_id": "device_id",
+            "age": "idade",
+            "fw": "fw",
+            "summary": "resumo",
+        }
+        for column in self._device_list_custom_columns():
+            widths[column["id"]] = int(column.get("width", 112))
+            heading_labels[column["id"]] = str(column.get("column_name", column["id"]))
+
+        self.tree_heading_labels = heading_labels
+        if self.tree_sort_column not in columns:
+            self.tree_sort_column = "device_id"
+
+        for col in columns:
+            self.tree.heading(col, text=heading_labels.get(col, col), command=lambda c=col: self._on_tree_heading_click(c))
+            self.tree.column(col, width=widths.get(col, 112), anchor="w")
+        self._refresh_tree_headings()
+        self._refresh_device_tree()
 
     def _apply_tree_sort(self):
         self._refresh_device_tree()

@@ -12,15 +12,35 @@
   "technical_status_auto_update": true,
   "technical_status_update_interval_sec": 3,
   "device_list": {
-    "group_field": "telecafe.group",
     "custom_columns": [
+      {
+        "id": "group",
+        "column_name": "grupo",
+        "role": "group",
+        "empty": "sem grupo",
+        "width": 92,
+        "fields": [
+          "telecafe.group"
+        ]
+      },
       {
         "id": "telecafe",
         "column_name": "telecafe",
+        "empty": "sem status",
+        "width": 120,
         "fields": [
-          "telecafe.combined_state",
-          "telecafe.local_active",
-          "telecafe.remote_active_count"
+          {
+            "id": "telecafe.combined_state",
+            "label": ""
+          },
+          {
+            "id": "telecafe.local_active",
+            "label": "local"
+          },
+          {
+            "id": "telecafe.remote_active_count",
+            "label": "rem"
+          }
         ]
       }
     ]

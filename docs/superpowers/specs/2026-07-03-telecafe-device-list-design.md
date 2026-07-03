@@ -2,49 +2,42 @@
 
 ## Goal
 
-Improve `tools/mqtt_desktop/mqtt_control_center.py` so the generic MQTT Control Center can show TeleCafezinho group context directly in the **Dispositivos** area while keeping the list flat.
+Improve `tools/mqtt_desktop/mqtt_control_center.py` so the generic MQTT Control Center can show TeleCafezinho group context directly in the **Dispositivos** area while keeping the list flat and configurable.
 
-The first version must let operators:
+Operators should be able to:
 
 - see each device group in the device list;
-- sort devices by group;
-- search by group;
-- see a compact TeleCafe status column for sensor/indication state;
-- configure the group source, compact column name, and compact column fields through `tools/mqtt_desktop/config.json`.
-
-## Current Context
-
-The desktop app already keeps a `DeviceInfo` object per MQTT device, extracts metadata such as firmware and session ID from received payloads, and renders a flat `ttk.Treeview` with sortable columns:
-
-`estado | device_id | idade | fw | resumo`
-
-The app also already reads `tools/mqtt_desktop/config.json`, falling back to `config.example.json`, and uses top-level settings for MQTT connection, heartbeat timeout, and technical status refresh.
-
-TeleCafezinho publishes status/config fields named `telecafe.*`. The group is `telecafe.group`, and the main state fields are:
-
-- `telecafe.combined_state`
-- `telecafe.local_active`
-- `telecafe.remote_active_count`
-- `telecafe.last_remote_device_id`
+- sort and search by group;
+- see compact TeleCafe sensor/indication state;
+- configure device-list custom columns through `tools/mqtt_desktop/config.json`.
 
 ## Configuration
 
-Add an optional `device_list` section to `tools/mqtt_desktop/config.json` and `config.example.json`.
+Display configuration lives under `device_list.custom_columns`. The older top-level `telecafe` section is ignored for device-list display.
 
 Default configuration:
 
 ```json
 {
   "device_list": {
-    "group_field": "telecafe.group",
     "custom_columns": [
+      {
+        "id": "group",
+        "column_name": "grupo",
+        "role": "group",
+        "empty": "sem grupo",
+        "width": 92,
+        "fields": ["telecafe.group"]
+      },
       {
         "id": "telecafe",
         "column_name": "telecafe",
+        "empty": "sem status",
+        "width": 120,
         "fields": [
-          "telecafe.combined_state",
-          "telecafe.local_active",
-          "telecafe.remote_active_count"
+          {"id": "telecafe.combined_state", "label": ""},
+          {"id": "telecafe.local_active", "label": "local"},
+          {"id": "telecafe.remote_active_count", "label": "rem"}
         ]
       }
     ]
@@ -52,24 +45,28 @@ Default configuration:
 }
 ```
 
-The app must behave as if this default exists when `device_list` or any nested key is absent. The older top-level `telecafe` section remains accepted as a compatibility alias.
+Each custom column supports:
 
-`group_field` names the payload field used as the device group. The default is `telecafe.group`.
+- `id`: stable column ID, not colliding with built-in columns such as `presence`, `device_id`, `age`, `fw`, or `summary`;
+- `column_name`: visible heading;
+- `fields`: one or more payload field IDs, as strings or objects with `id` and optional `label`;
+- `empty`: text to show when no configured field has a value;
+- `role`: optional behavior marker. `role: "group"` gives group sorting and selected-device group detail behavior;
+- `width`: optional Treeview column width.
 
-`custom_columns[0].column_name` names the compact device-list column. The default is `telecafe`. The older `summary_column_name` key remains accepted as a compatibility alias inside the legacy `telecafe` section.
-
-`custom_columns[0].fields` lists field IDs to read and summarize in the compact column. In the first version this is a list of strings only. Object-based field formatting is out of scope.
+If a column has one field, the device list shows only the value. If a column has multiple fields, each rendered part uses the field label when configured, the last segment of the field ID when no label exists, or just the value when `label` is the empty string.
 
 Invalid config values should fall back safely:
 
-- empty or non-string `group_field` falls back to `telecafe.group`;
-- empty or non-string `column_name` falls back to `telecafe`;
-- missing, empty, or non-list `fields` falls back to the default field list;
-- non-string entries in `fields` are ignored.
+- missing, non-list, or fully invalid `custom_columns` falls back to the default columns;
+- invalid, duplicate, or reserved column IDs are ignored;
+- columns without usable fields are ignored;
+- invalid field entries are ignored;
+- missing `column_name`, `empty`, `role`, or `width` values receive safe defaults.
 
 ## Data Extraction
 
-Add helper logic to resolve configured field IDs from device payloads. The helper should support exact field IDs such as `telecafe.group` and should read from known payload sources using the latest timestamp for each field:
+Custom column fields resolve from known payload sources using the latest timestamp per field:
 
 1. `heartbeat`
 2. `state`
@@ -77,7 +74,7 @@ Add helper logic to resolve configured field IDs from device payloads. The helpe
 4. `cmd/out.result`, when it is a dictionary
 5. `device.last_technical_status_result`
 
-The field resolver should handle both flattened keys like `"telecafe.group"` and nested dictionaries such as:
+The field resolver supports both flattened keys like `"telecafe.group"` and nested dictionaries such as:
 
 ```json
 {
@@ -87,21 +84,13 @@ The field resolver should handle both flattened keys like `"telecafe.group"` and
 }
 ```
 
-When a message arrives, the group should resolve through the configured `group_field`. It should also be available when only retained `state` or `heartbeat` data exists.
-
 ## Device List UI
 
-Keep the current flat list. Add columns so the list becomes:
+Keep the current flat list. Add custom columns after `estado`, so the default list becomes:
 
-`estado | grupo | device_id | idade | fw | <column_name> | resumo`
+`estado | grupo | telecafe | device_id | idade | fw | resumo`
 
-Recommended widths:
-
-- `grupo`: wide enough for names like `mesa-01`;
-- compact TeleCafe column: wide enough for values like `combined_state=idle`;
-- reduce `resumo` width only as needed to fit.
-
-The `grupo` column must:
+The default `grupo` custom column must:
 
 - display the resolved group, or `sem grupo` when unavailable;
 - sort lexicographically by group, with ungrouped devices last;
@@ -109,38 +98,33 @@ The `grupo` column must:
 - appear in device row tooltips;
 - appear in the selected device details panel.
 
-The compact TeleCafe column must:
+Any custom column must:
 
 - use the configured `column_name` as the heading;
 - sort by its rendered text;
 - participate in text search;
 - appear in row tooltips.
 
-## Compact TeleCafe Rendering
+## Compact Rendering
 
-Render configured `fields` as a compact generic summary of `field=value` pairs joined by ` |`, using the last segment of each field ID as the display name. Example:
+Render configured multi-field columns as compact parts joined by ` | `. Examples:
 
-`combined_state=idle | remote_active_count=0`
+`idle | local=False | rem=0`
 
-This keeps version one configurable without adding a field-format mini-language. It also ensures every configured field can appear in the column instead of being collapsed into a single operational label.
+`combined_state=idle | signal_seq=42`
 
-## Error Handling
-
-Configuration errors must not prevent startup. The app should ignore unusable `device_list` configuration values and continue with defaults.
-
-Missing fields in device payloads are normal. They should render as `sem grupo` or `sem status`, not as errors.
+This keeps the display configurable without adding a field-format mini-language. A single-field column renders only the value, so the default group column shows `01` instead of `group=01`.
 
 ## Testing And Verification
-
-Add focused unit-test coverage if the current desktop app test harness supports it. If no harness exists, isolate pure helpers enough to validate them with a small Python test or direct module-level assertions.
 
 Minimum verification:
 
 - default config is applied when `device_list` is absent;
-- `group_field` resolves `telecafe.group` from flat and nested payloads;
+- legacy top-level `telecafe` display config is ignored;
+- custom field IDs resolve from flat and nested payloads;
 - group appears in search and sort behavior;
-- compact rendering shows configured `fields` as stable `field=value` text;
-- generic `fields` render stable `field=value` text;
+- single-field custom columns render only values;
+- compact rendering uses configured labels for multi-field columns;
 - newer timestamps win per field across heartbeat, state, and command/result snapshots;
 - invalid config values fall back to defaults.
 
@@ -149,13 +133,12 @@ Manual verification:
 - run the MQTT desktop app;
 - receive retained or live payloads containing `telecafe.group`;
 - confirm the list shows `grupo`, sortable by header;
-- confirm the compact column heading follows `column_name`;
+- confirm custom column headings follow `column_name`;
 - confirm devices without TeleCafe data remain readable as `sem grupo` / `sem status`.
 
 ## Out Of Scope
 
 - Tree or grouped-section device list.
 - Dedicated TeleCafe dashboard.
-- In-app editor for `device_list` display settings.
-- Object-based custom formatting for `summary_fields`.
+- In-app management of custom-column settings.
 - Firmware changes.
