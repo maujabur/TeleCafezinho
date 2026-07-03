@@ -23,6 +23,18 @@ PENDING_COMMAND_TIMEOUT_SEC = 30
 MAX_LOG_LINES = 2000
 COMMAND_OPTION_PLACEHOLDER = "selecione..."
 COMMANDS_HIDDEN_FROM_COMMANDS_TAB = {"config/set", "config/reset"}
+DEFAULT_TELECAFE_GROUP_FIELD = "telecafe.group"
+DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME = "telecafe"
+DEFAULT_TELECAFE_SUMMARY_FIELDS = [
+    "telecafe.combined_state",
+    "telecafe.local_active",
+    "telecafe.remote_active_count",
+]
+DEFAULT_TELECAFE_DISPLAY_CONFIG = {
+    "group_field": DEFAULT_TELECAFE_GROUP_FIELD,
+    "summary_column_name": DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME,
+    "summary_fields": DEFAULT_TELECAFE_SUMMARY_FIELDS,
+}
 
 
 def command_args_from_inputs(arg_specs: list[Dict[str, Any]], values: Dict[str, str]) -> Dict[str, Any]:
@@ -163,9 +175,137 @@ class DeviceInfo:
     last_get_state_at: Optional[datetime] = None
     last_technical_status_result: Optional[Dict[str, Any]] = None
     last_technical_status_at: Optional[datetime] = None
+    group: str = ""
     fw: str = "-"
     session_id: str = "-"
     last_messages: Dict[str, MessageSnapshot] = field(default_factory=dict)
+
+
+def normalize_telecafe_display_config(raw_config: Any) -> Dict[str, Any]:
+    config = raw_config if isinstance(raw_config, dict) else {}
+    group_field = config.get("group_field")
+    if not isinstance(group_field, str) or not group_field.strip():
+        group_field = DEFAULT_TELECAFE_GROUP_FIELD
+    else:
+        group_field = group_field.strip()
+
+    summary_column_name = config.get("summary_column_name")
+    if not isinstance(summary_column_name, str) or not summary_column_name.strip():
+        summary_column_name = DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME
+    else:
+        summary_column_name = summary_column_name.strip()
+
+    raw_fields = config.get("summary_fields")
+    summary_fields = []
+    if isinstance(raw_fields, list):
+        summary_fields = [item.strip() for item in raw_fields if isinstance(item, str) and item.strip()]
+    if not summary_fields:
+        summary_fields = list(DEFAULT_TELECAFE_SUMMARY_FIELDS)
+
+    return {
+        "group_field": group_field,
+        "summary_column_name": summary_column_name,
+        "summary_fields": summary_fields,
+    }
+
+
+def resolve_payload_field(payload: Dict[str, Any], field_id: str) -> Any:
+    if not isinstance(payload, dict) or not field_id:
+        return None
+    if field_id in payload:
+        return payload[field_id]
+    current: Any = payload
+    for part in field_id.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def telecafe_display_sources_for_device(device: DeviceInfo) -> list[Dict[str, Any]]:
+    sources: list[Dict[str, Any]] = []
+    for payload in (
+        device.last_get_state_result or {},
+        _snapshot_payload(device, "state"),
+        _snapshot_payload(device, "heartbeat"),
+        _cmd_out_result_payload(device),
+        device.last_technical_status_result or {},
+    ):
+        if isinstance(payload, dict):
+            sources.append(payload)
+    return sources
+
+
+def _snapshot_payload(device: DeviceInfo, msg_type: str) -> Dict[str, Any]:
+    snap = device.last_messages.get(msg_type)
+    if snap and isinstance(snap.payload_obj, dict):
+        return snap.payload_obj
+    return {}
+
+
+def _cmd_out_result_payload(device: DeviceInfo) -> Dict[str, Any]:
+    cmd_out = _snapshot_payload(device, "cmd/out")
+    result = cmd_out.get("result")
+    return result if isinstance(result, dict) else {}
+
+
+def telecafe_group_text(device: DeviceInfo, group_field: str) -> str:
+    for payload in telecafe_display_sources_for_device(device):
+        value = resolve_payload_field(payload, group_field)
+        if value not in (None, ""):
+            return str(value)
+    return "sem grupo"
+
+
+def telecafe_summary_text(sources: list[Dict[str, Any]], summary_fields: list[str]) -> str:
+    values = {field_id: _first_payload_value(sources, field_id) for field_id in summary_fields}
+    if summary_fields == DEFAULT_TELECAFE_SUMMARY_FIELDS:
+        return _default_telecafe_summary(values)
+    parts = []
+    for field_id in summary_fields:
+        value = values.get(field_id)
+        if value not in (None, ""):
+            parts.append(f"{field_id.split('.')[-1]}={value}")
+    return " | ".join(parts) if parts else "sem status"
+
+
+def _first_payload_value(sources: list[Dict[str, Any]], field_id: str) -> Any:
+    for payload in sources:
+        value = resolve_payload_field(payload, field_id)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _default_telecafe_summary(values: Dict[str, Any]) -> str:
+    combined_state = values.get("telecafe.combined_state")
+    local_active = _truthy(values.get("telecafe.local_active"))
+    remote_count = _int_or_none(values.get("telecafe.remote_active_count"))
+
+    if combined_state == "idle":
+        return "idle"
+    if combined_state == "local_active" or (local_active and not remote_count):
+        return "local ativo"
+    if combined_state == "remote_active":
+        return f"remoto {remote_count}" if remote_count is not None else "remoto"
+    if combined_state == "mutual_active":
+        return f"mutuo {remote_count}" if remote_count is not None else "mutuo"
+    return "sem status"
+
+
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "sim", "yes", "on"}
+    return bool(value)
+
+
+def _int_or_none(value: Any) -> Optional[int]:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class MQTTManager:
