@@ -29,44 +29,47 @@ TeleCafezinho publishes status/config fields named `telecafe.*`. The group is `t
 
 ## Configuration
 
-Add an optional `telecafe` section to `tools/mqtt_desktop/config.json` and `config.example.json`.
+Add an optional `device_list` section to `tools/mqtt_desktop/config.json` and `config.example.json`.
 
 Default configuration:
 
 ```json
 {
-  "telecafe": {
+  "device_list": {
     "group_field": "telecafe.group",
-    "column_name": "telecafe",
-    "summary_fields": [
-      "telecafe.combined_state",
-      "telecafe.local_active",
-      "telecafe.remote_active_count"
+    "custom_columns": [
+      {
+        "id": "telecafe",
+        "column_name": "telecafe",
+        "fields": [
+          "telecafe.combined_state",
+          "telecafe.local_active",
+          "telecafe.remote_active_count"
+        ]
+      }
     ]
   }
 }
 ```
 
-The app must behave as if this default exists when `telecafe` or any nested key is absent.
+The app must behave as if this default exists when `device_list` or any nested key is absent. The older top-level `telecafe` section remains accepted as a compatibility alias.
 
 `group_field` names the payload field used as the device group. The default is `telecafe.group`.
 
-`column_name` names the compact device-list column. The default is `telecafe`. The older `summary_column_name` key remains accepted as a compatibility alias.
+`custom_columns[0].column_name` names the compact device-list column. The default is `telecafe`. The older `summary_column_name` key remains accepted as a compatibility alias inside the legacy `telecafe` section.
 
-`summary_fields` lists field IDs to read and summarize in the compact column. In the first version this is a list of strings only. Object-based field formatting is out of scope.
+`custom_columns[0].fields` lists field IDs to read and summarize in the compact column. In the first version this is a list of strings only. Object-based field formatting is out of scope.
 
 Invalid config values should fall back safely:
 
 - empty or non-string `group_field` falls back to `telecafe.group`;
 - empty or non-string `column_name` falls back to `telecafe`;
-- missing, empty, or non-list `summary_fields` falls back to the default field list;
-- non-string entries in `summary_fields` are ignored.
+- missing, empty, or non-list `fields` falls back to the default field list;
+- non-string entries in `fields` are ignored.
 
 ## Data Extraction
 
-Add `group` metadata to each `DeviceInfo`, defaulting internally to an empty string. UI rendering should display empty groups as `sem grupo`.
-
-Add helper logic to resolve configured field IDs from device payloads. The helper should support exact field IDs such as `telecafe.group` and should read from known payload sources in a stable priority order that favors live status over retained or command snapshots:
+Add helper logic to resolve configured field IDs from device payloads. The helper should support exact field IDs such as `telecafe.group` and should read from known payload sources using the latest timestamp for each field:
 
 1. `heartbeat`
 2. `state`
@@ -84,7 +87,7 @@ The field resolver should handle both flattened keys like `"telecafe.group"` and
 }
 ```
 
-When a message arrives, update the cached device group through the configured `group_field`. The group should also be available when only retained `state` or `heartbeat` data exists.
+When a message arrives, the group should resolve through the configured `group_field`. It should also be available when only retained `state` or `heartbeat` data exists.
 
 ## Device List UI
 
@@ -115,7 +118,7 @@ The compact TeleCafe column must:
 
 ## Compact TeleCafe Rendering
 
-Render `summary_fields` as a compact generic summary of `field=value` pairs joined by ` |`, using the last segment of each field ID as the display name. Example:
+Render configured `fields` as a compact generic summary of `field=value` pairs joined by ` |`, using the last segment of each field ID as the display name. Example:
 
 `combined_state=idle | remote_active_count=0`
 
@@ -123,7 +126,7 @@ This keeps version one configurable without adding a field-format mini-language.
 
 ## Error Handling
 
-Configuration errors must not prevent startup. The app should log a warning for unusable `telecafe` configuration values and continue with defaults.
+Configuration errors must not prevent startup. The app should ignore unusable `device_list` configuration values and continue with defaults.
 
 Missing fields in device payloads are normal. They should render as `sem grupo` or `sem status`, not as errors.
 
@@ -133,11 +136,12 @@ Add focused unit-test coverage if the current desktop app test harness supports 
 
 Minimum verification:
 
-- default config is applied when `telecafe` is absent;
+- default config is applied when `device_list` is absent;
 - `group_field` resolves `telecafe.group` from flat and nested payloads;
 - group appears in search and sort behavior;
-- compact rendering shows configured `summary_fields` as stable `field=value` text;
-- generic `summary_fields` render stable `field=value` text;
+- compact rendering shows configured `fields` as stable `field=value` text;
+- generic `fields` render stable `field=value` text;
+- newer timestamps win per field across heartbeat, state, and command/result snapshots;
 - invalid config values fall back to defaults.
 
 Manual verification:
@@ -152,6 +156,6 @@ Manual verification:
 
 - Tree or grouped-section device list.
 - Dedicated TeleCafe dashboard.
-- In-app editor for `telecafe` display settings.
+- In-app editor for `device_list` display settings.
 - Object-based custom formatting for `summary_fields`.
 - Firmware changes.

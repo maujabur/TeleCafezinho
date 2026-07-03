@@ -181,21 +181,48 @@ class DeviceInfo:
     last_messages: Dict[str, MessageSnapshot] = field(default_factory=dict)
 
 
-def normalize_telecafe_display_config(raw_config: Any) -> Dict[str, Any]:
-    config = raw_config if isinstance(raw_config, dict) else {}
+@dataclass(frozen=True)
+class PayloadSource:
+    payload: Dict[str, Any]
+    timestamp: Optional[datetime]
+
+
+def normalize_device_list_display_config(raw_config: Any) -> Dict[str, Any]:
+    root = raw_config if isinstance(raw_config, dict) else {}
+    config = root.get("device_list") if isinstance(root.get("device_list"), dict) else None
+    legacy_config = root.get("telecafe") if isinstance(root.get("telecafe"), dict) else None
+
+    if config is not None:
+        group_source = config
+        custom_columns = config.get("custom_columns")
+        first_column = custom_columns[0] if isinstance(custom_columns, list) and custom_columns else {}
+        column_config = first_column if isinstance(first_column, dict) else {}
+        raw_fields = column_config.get("fields")
+    elif legacy_config is not None:
+        group_source = legacy_config
+        column_config = legacy_config
+        raw_fields = legacy_config.get("summary_fields")
+    else:
+        group_source = root
+        column_config = root
+        raw_fields = root.get("summary_fields")
+
+    if not isinstance(column_config, dict):
+        column_config = {}
+
+    config = group_source if isinstance(group_source, dict) else {}
     group_field = config.get("group_field")
     if not isinstance(group_field, str) or not group_field.strip():
         group_field = DEFAULT_TELECAFE_GROUP_FIELD
     else:
         group_field = group_field.strip()
 
-    summary_column_name = config.get("column_name", config.get("summary_column_name"))
+    summary_column_name = column_config.get("column_name", column_config.get("summary_column_name"))
     if not isinstance(summary_column_name, str) or not summary_column_name.strip():
         summary_column_name = DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME
     else:
         summary_column_name = summary_column_name.strip()
 
-    raw_fields = config.get("summary_fields")
     summary_fields = []
     if isinstance(raw_fields, list):
         summary_fields = [item.strip() for item in raw_fields if isinstance(item, str) and item.strip()]
@@ -207,6 +234,10 @@ def normalize_telecafe_display_config(raw_config: Any) -> Dict[str, Any]:
         "summary_column_name": summary_column_name,
         "summary_fields": summary_fields,
     }
+
+
+def normalize_telecafe_display_config(raw_config: Any) -> Dict[str, Any]:
+    return normalize_device_list_display_config({"telecafe": raw_config} if isinstance(raw_config, dict) else raw_config)
 
 
 def resolve_payload_field(payload: Dict[str, Any], field_id: str) -> Any:
@@ -222,18 +253,26 @@ def resolve_payload_field(payload: Dict[str, Any], field_id: str) -> Any:
     return current
 
 
-def telecafe_display_sources_for_device(device: DeviceInfo) -> list[Dict[str, Any]]:
-    sources: list[Dict[str, Any]] = []
-    for payload in (
-        _snapshot_payload(device, "heartbeat"),
-        _snapshot_payload(device, "state"),
-        device.last_get_state_result or {},
-        _cmd_out_result_payload(device),
-        device.last_technical_status_result or {},
+def telecafe_display_sources_for_device(device: DeviceInfo) -> list[PayloadSource]:
+    sources: list[PayloadSource] = []
+    for payload, timestamp in (
+        _snapshot_payload_source(device, "heartbeat"),
+        _snapshot_payload_source(device, "state"),
+        (device.last_get_state_result or {}, device.last_get_state_at),
+        _cmd_out_result_payload_source(device),
+        (device.last_technical_status_result or {}, device.last_technical_status_at),
     ):
         if isinstance(payload, dict):
-            sources.append(payload)
+            sources.append(PayloadSource(payload=payload, timestamp=timestamp))
+    sources.sort(key=lambda source: source.timestamp or datetime.min, reverse=True)
     return sources
+
+
+def _snapshot_payload_source(device: DeviceInfo, msg_type: str) -> Tuple[Dict[str, Any], Optional[datetime]]:
+    snap = device.last_messages.get(msg_type)
+    if snap and isinstance(snap.payload_obj, dict):
+        return snap.payload_obj, snap.timestamp
+    return {}, None
 
 
 def _snapshot_payload(device: DeviceInfo, msg_type: str) -> Dict[str, Any]:
@@ -243,6 +282,19 @@ def _snapshot_payload(device: DeviceInfo, msg_type: str) -> Dict[str, Any]:
     return {}
 
 
+def _snapshot_timestamp(device: DeviceInfo, msg_type: str) -> Optional[datetime]:
+    snap = device.last_messages.get(msg_type)
+    return snap.timestamp if snap else None
+
+
+def _cmd_out_result_payload_source(device: DeviceInfo) -> Tuple[Dict[str, Any], Optional[datetime]]:
+    snap = device.last_messages.get("cmd/out")
+    if not snap or not isinstance(snap.payload_obj, dict):
+        return {}, None
+    result = snap.payload_obj.get("result")
+    return (result, snap.timestamp) if isinstance(result, dict) else ({}, None)
+
+
 def _cmd_out_result_payload(device: DeviceInfo) -> Dict[str, Any]:
     cmd_out = _snapshot_payload(device, "cmd/out")
     result = cmd_out.get("result")
@@ -250,15 +302,12 @@ def _cmd_out_result_payload(device: DeviceInfo) -> Dict[str, Any]:
 
 
 def telecafe_group_text(device: DeviceInfo, group_field: str) -> str:
-    for payload in telecafe_display_sources_for_device(device):
-        value = resolve_payload_field(payload, group_field)
-        if value not in (None, ""):
-            return str(value)
-    return "sem grupo"
+    value = _latest_payload_value(telecafe_display_sources_for_device(device), group_field)
+    return str(value) if value not in (None, "") else "sem grupo"
 
 
-def telecafe_summary_text(sources: list[Dict[str, Any]], summary_fields: list[str]) -> str:
-    values = {field_id: _first_payload_value(sources, field_id) for field_id in summary_fields}
+def telecafe_summary_text(sources: list[Any], summary_fields: list[str]) -> str:
+    values = {field_id: _latest_payload_value(sources, field_id) for field_id in summary_fields}
     parts = []
     for field_id in summary_fields:
         value = values.get(field_id)
@@ -267,12 +316,28 @@ def telecafe_summary_text(sources: list[Dict[str, Any]], summary_fields: list[st
     return " | ".join(parts) if parts else "sem status"
 
 
-def _first_payload_value(sources: list[Dict[str, Any]], field_id: str) -> Any:
-    for payload in sources:
+def _latest_payload_value(sources: list[Any], field_id: str) -> Any:
+    best_value = None
+    best_timestamp = None
+    found = False
+    for source in sources:
+        payload, timestamp = _coerce_payload_source(source)
         value = resolve_payload_field(payload, field_id)
-        if value not in (None, ""):
-            return value
-    return None
+        if value in (None, ""):
+            continue
+        if not found or (timestamp is not None and (best_timestamp is None or timestamp > best_timestamp)):
+            best_value = value
+            best_timestamp = timestamp
+            found = True
+    return best_value
+
+
+def _coerce_payload_source(source: Any) -> Tuple[Dict[str, Any], Optional[datetime]]:
+    if isinstance(source, PayloadSource):
+        return source.payload, source.timestamp
+    if isinstance(source, dict):
+        return source, None
+    return {}, None
 
 class MQTTManager:
     def __init__(self, event_queue: queue.Queue):
@@ -454,7 +519,7 @@ class App(ctk.CTk):
         self.tree_sort_column = "device_id"
         self.tree_sort_desc = False
         self.tree_heading_labels: Dict[str, str] = {}
-        self.telecafe_display_config = normalize_telecafe_display_config({})
+        self.telecafe_display_config = normalize_device_list_display_config({})
         self.status_icons: Dict[str, tk.PhotoImage] = {}
         self.device_tree_refresh_after_id: Optional[str] = None
         self.auto_connect_pending = False
@@ -1406,6 +1471,7 @@ class App(ctk.CTk):
                 self._clear_status_values(clear_manifest=False)
             self._render_status_manifest_view(
                 status_manifest_payload,
+                device,
                 heartbeat_payload,
                 state_topic_payload,
                 get_state_payload,
@@ -1642,6 +1708,7 @@ class App(ctk.CTk):
     def _render_status_manifest_view(
         self,
         manifest: Dict[str, Any],
+        device: DeviceInfo,
         heartbeat: Dict[str, Any],
         state_topic: Dict[str, Any],
         get_state: Dict[str, Any],
@@ -1774,7 +1841,7 @@ class App(ctk.CTk):
                 labels_by_id[field_id] = tuple(row_labels)
                 row += 1
 
-        values = self._manifest_value_sources(heartbeat, state_topic, get_state, technical_status)
+        values = self._manifest_value_sources_for_device(device)
         for field in status_items:
             if not isinstance(field, dict):
                 continue
@@ -1809,6 +1876,28 @@ class App(ctk.CTk):
             if isinstance(payload, dict):
                 values.update(self._flatten_dict(payload))
         return values
+
+    def _manifest_value_sources_for_device(self, device: DeviceInfo) -> Dict[str, Any]:
+        values_by_field: Dict[str, tuple[Any, Optional[datetime]]] = {}
+        sources = [
+            PayloadSource(_snapshot_payload(device, "heartbeat"), _snapshot_timestamp(device, "heartbeat")),
+            PayloadSource(_snapshot_payload(device, "state"), _snapshot_timestamp(device, "state")),
+            PayloadSource(device.last_get_state_result or {}, device.last_get_state_at),
+            PayloadSource(_cmd_out_result_payload(device), _snapshot_timestamp(device, "cmd/out")),
+            PayloadSource(device.last_technical_status_result or {}, device.last_technical_status_at),
+        ]
+        for source in sources:
+            if not isinstance(source.payload, dict):
+                continue
+            for field_id, value in self._flatten_dict(source.payload).items():
+                if value in (None, ""):
+                    continue
+                _old_value, old_timestamp = values_by_field.get(field_id, (None, None))
+                if field_id not in values_by_field or (
+                    source.timestamp is not None and (old_timestamp is None or source.timestamp > old_timestamp)
+                ):
+                    values_by_field[field_id] = (value, source.timestamp)
+        return {field_id: value for field_id, (value, _timestamp) in values_by_field.items()}
 
     def _status_field_tooltip_text(self, field: Dict[str, Any]) -> str:
         field_id = str(field.get("id") or "-")
@@ -2070,7 +2159,7 @@ class App(ctk.CTk):
         self.auto_connect_on_start_var.set(
             bool(config_data.get("auto_connect_on_start", self.auto_connect_on_start_var.get()))
         )
-        self.telecafe_display_config = normalize_telecafe_display_config(config_data.get("telecafe"))
+        self.telecafe_display_config = normalize_device_list_display_config(config_data)
         if "telecafe" in self.tree_heading_labels:
             self.tree_heading_labels["telecafe"] = str(self.telecafe_display_config["summary_column_name"])
             self._refresh_tree_headings()

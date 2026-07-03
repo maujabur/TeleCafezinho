@@ -80,7 +80,7 @@ from tools.mqtt_desktop.mqtt_control_center import (  # noqa: E402
     DEFAULT_TELECAFE_SUMMARY_FIELDS,
     DeviceInfo,
     MessageSnapshot,
-    normalize_telecafe_display_config,
+    normalize_device_list_display_config,
     resolve_payload_field,
     telecafe_display_sources_for_device,
     telecafe_group_text,
@@ -89,19 +89,25 @@ from tools.mqtt_desktop.mqtt_control_center import (  # noqa: E402
 
 
 class TeleCafeDisplayHelperTest(unittest.TestCase):
-    def test_normalize_telecafe_display_config_uses_defaults_for_missing_config(self):
-        cfg = normalize_telecafe_display_config({})
+    def test_normalize_device_list_display_config_uses_defaults_for_missing_config(self):
+        cfg = normalize_device_list_display_config({})
 
         self.assertEqual(cfg["group_field"], DEFAULT_TELECAFE_GROUP_FIELD)
         self.assertEqual(cfg["summary_column_name"], DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME)
         self.assertEqual(cfg["summary_fields"], DEFAULT_TELECAFE_SUMMARY_FIELDS)
 
-    def test_normalize_telecafe_display_config_ignores_invalid_values(self):
-        cfg = normalize_telecafe_display_config(
+    def test_normalize_device_list_display_config_ignores_invalid_values(self):
+        cfg = normalize_device_list_display_config(
             {
-                "group_field": "",
-                "column_name": 12,
-                "summary_fields": ["telecafe.combined_state", 9, ""],
+                "device_list": {
+                    "group_field": "",
+                    "custom_columns": [
+                        {
+                            "column_name": 12,
+                            "fields": ["telecafe.combined_state", 9, ""],
+                        }
+                    ],
+                }
             }
         )
 
@@ -109,10 +115,38 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
         self.assertEqual(cfg["summary_column_name"], DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME)
         self.assertEqual(cfg["summary_fields"], ["telecafe.combined_state"])
 
-    def test_normalize_telecafe_display_config_accepts_column_name(self):
-        cfg = normalize_telecafe_display_config({"column_name": "indicacao"})
+    def test_normalize_device_list_display_config_accepts_custom_column_section(self):
+        cfg = normalize_device_list_display_config(
+            {
+                "device_list": {
+                    "group_field": "telecafe.group",
+                    "custom_columns": [
+                        {
+                            "id": "telecafe",
+                            "column_name": "indicacao",
+                            "fields": ["telecafe.combined_state"],
+                        }
+                    ],
+                }
+            }
+        )
 
         self.assertEqual(cfg["summary_column_name"], "indicacao")
+        self.assertEqual(cfg["summary_fields"], ["telecafe.combined_state"])
+
+    def test_normalize_device_list_display_config_keeps_legacy_telecafe_section(self):
+        cfg = normalize_device_list_display_config(
+            {
+                "telecafe": {
+                    "group_field": "telecafe.group",
+                    "column_name": "legacy",
+                    "summary_fields": ["telecafe.signal_seq"],
+                }
+            }
+        )
+
+        self.assertEqual(cfg["summary_column_name"], "legacy")
+        self.assertEqual(cfg["summary_fields"], ["telecafe.signal_seq"])
 
     def test_resolve_payload_field_supports_flat_and_nested_keys(self):
         flat = {"telecafe.group": "mesa-01"}
@@ -147,7 +181,7 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
 
         sources = telecafe_display_sources_for_device(device)
 
-        self.assertEqual(resolve_payload_field(sources[0], "telecafe.combined_state"), "local_active")
+        self.assertEqual(resolve_payload_field(sources[0].payload, "telecafe.combined_state"), "local_active")
         self.assertEqual(telecafe_group_text(device, "telecafe.group"), "mesa-01")
 
     def test_group_text_returns_sem_grupo_when_missing(self):
@@ -183,11 +217,18 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
 class TeleCafeDeviceListMethodTest(unittest.TestCase):
     def make_app_shell(self):
         app = object.__new__(App)
-        app.telecafe_display_config = normalize_telecafe_display_config(
+        app.telecafe_display_config = normalize_device_list_display_config(
             {
-                "group_field": "telecafe.group",
-                "column_name": "indicacao",
-                "summary_fields": DEFAULT_TELECAFE_SUMMARY_FIELDS,
+                "device_list": {
+                    "group_field": "telecafe.group",
+                    "custom_columns": [
+                        {
+                            "id": "telecafe",
+                            "column_name": "indicacao",
+                            "fields": DEFAULT_TELECAFE_SUMMARY_FIELDS,
+                        }
+                    ],
+                }
             }
         )
         app.pending_cmd_by_id = {}
@@ -242,6 +283,32 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
 
         self.assertEqual(values[5], "combined_state=local_active | local_active=True")
 
+    def test_tree_values_choose_latest_timestamp_per_field(self):
+        app = self.make_app_shell()
+        device = DeviceInfo(device_id="dev-1", fw="1.0")
+        device.last_messages["heartbeat"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3, 10, 0, 0),
+            topic="topic",
+            payload_obj={
+                "telecafe.group": "mesa-01",
+                "telecafe.combined_state": "local_active",
+            },
+            payload_raw="{}",
+        )
+        device.last_messages["state"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3, 10, 1, 0),
+            topic="topic",
+            payload_obj={
+                "telecafe.group": "mesa-01",
+                "telecafe.combined_state": "idle",
+            },
+            payload_raw="{}",
+        )
+
+        _presence_key, values = app._tree_values_for_device(device)
+
+        self.assertEqual(values[5], "combined_state=idle")
+
     def test_manifest_values_prefer_live_heartbeat_over_stale_state(self):
         app = self.make_app_shell()
 
@@ -254,6 +321,26 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
 
         self.assertEqual(values["telecafe.combined_state"], "local_active")
         self.assertIs(values["telecafe.local_active"], True)
+
+    def test_manifest_values_choose_latest_timestamp_from_device(self):
+        app = self.make_app_shell()
+        device = DeviceInfo(device_id="dev-1")
+        device.last_messages["heartbeat"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3, 10, 0, 0),
+            topic="topic",
+            payload_obj={"telecafe.combined_state": "local_active"},
+            payload_raw="{}",
+        )
+        device.last_messages["state"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3, 10, 1, 0),
+            topic="topic",
+            payload_obj={"telecafe.combined_state": "idle"},
+            payload_raw="{}",
+        )
+
+        values = app._manifest_value_sources_for_device(device)
+
+        self.assertEqual(values["telecafe.combined_state"], "idle")
 
     def test_sort_key_orders_grouped_devices_before_ungrouped(self):
         app = self.make_app_shell()

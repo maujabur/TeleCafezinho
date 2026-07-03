@@ -11,13 +11,18 @@
   "heartbeat_timeout_sec": 180,
   "technical_status_auto_update": true,
   "technical_status_update_interval_sec": 3,
-  "telecafe": {
+  "device_list": {
     "group_field": "telecafe.group",
-    "column_name": "telecafe",
-    "summary_fields": [
-      "telecafe.combined_state",
-      "telecafe.local_active",
-      "telecafe.remote_active_count"
+    "custom_columns": [
+      {
+        "id": "telecafe",
+        "column_name": "telecafe",
+        "fields": [
+          "telecafe.combined_state",
+          "telecafe.local_active",
+          "telecafe.remote_active_count"
+        ]
+      }
     ]
   }
 }
