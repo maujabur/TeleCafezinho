@@ -13,7 +13,7 @@
   "technical_status_update_interval_sec": 3,
   "telecafe": {
     "group_field": "telecafe.group",
-    "summary_column_name": "telecafe",
+    "column_name": "telecafe",
     "summary_fields": [
       "telecafe.combined_state",
       "telecafe.local_active",

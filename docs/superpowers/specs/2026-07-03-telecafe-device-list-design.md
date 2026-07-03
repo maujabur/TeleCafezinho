@@ -37,7 +37,7 @@ Default configuration:
 {
   "telecafe": {
     "group_field": "telecafe.group",
-    "summary_column_name": "telecafe",
+    "column_name": "telecafe",
     "summary_fields": [
       "telecafe.combined_state",
       "telecafe.local_active",
@@ -51,14 +51,14 @@ The app must behave as if this default exists when `telecafe` or any nested key 
 
 `group_field` names the payload field used as the device group. The default is `telecafe.group`.
 
-`summary_column_name` names the compact device-list column. The default is `telecafe`.
+`column_name` names the compact device-list column. The default is `telecafe`. The older `summary_column_name` key remains accepted as a compatibility alias.
 
 `summary_fields` lists field IDs to read and summarize in the compact column. In the first version this is a list of strings only. Object-based field formatting is out of scope.
 
 Invalid config values should fall back safely:
 
 - empty or non-string `group_field` falls back to `telecafe.group`;
-- empty or non-string `summary_column_name` falls back to `telecafe`;
+- empty or non-string `column_name` falls back to `telecafe`;
 - missing, empty, or non-list `summary_fields` falls back to the default field list;
 - non-string entries in `summary_fields` are ignored.
 
@@ -90,12 +90,12 @@ When a message arrives, update the cached device group through the configured `g
 
 Keep the current flat list. Add columns so the list becomes:
 
-`estado | grupo | device_id | idade | fw | <summary_column_name> | resumo`
+`estado | grupo | device_id | idade | fw | <column_name> | resumo`
 
 Recommended widths:
 
 - `grupo`: wide enough for names like `mesa-01`;
-- compact TeleCafe column: wide enough for `mutuo 2` or `remoto 12`;
+- compact TeleCafe column: wide enough for values like `combined_state=idle`;
 - reduce `resumo` width only as needed to fit.
 
 The `grupo` column must:
@@ -108,26 +108,18 @@ The `grupo` column must:
 
 The compact TeleCafe column must:
 
-- use the configured `summary_column_name` as the heading;
+- use the configured `column_name` as the heading;
 - sort by its rendered text;
 - participate in text search;
 - appear in row tooltips.
 
 ## Compact TeleCafe Rendering
 
-For the default field set, render a concise operational state:
-
-- `idle` when `telecafe.combined_state == "idle"`;
-- `local ativo` when `combined_state == "local_active"` or `local_active` is true with no remote active devices;
-- `remoto N` when `combined_state == "remote_active"`, using `remote_active_count` when available;
-- `mutuo N` when `combined_state == "mutual_active"`, using `remote_active_count` when available;
-- `sem status` when no configured field has a usable value.
-
-For non-default `summary_fields`, render a compact generic summary as `field=value` pairs joined by ` |`, using the last segment of each field ID as the display name. Example:
+Render `summary_fields` as a compact generic summary of `field=value` pairs joined by ` |`, using the last segment of each field ID as the display name. Example:
 
 `combined_state=idle | remote_active_count=0`
 
-This keeps version one configurable without adding a field-format mini-language.
+This keeps version one configurable without adding a field-format mini-language. It also ensures every configured field can appear in the column instead of being collapsed into a single operational label.
 
 ## Error Handling
 
@@ -144,7 +136,7 @@ Minimum verification:
 - default config is applied when `telecafe` is absent;
 - `group_field` resolves `telecafe.group` from flat and nested payloads;
 - group appears in search and sort behavior;
-- default compact rendering maps `idle`, `local_active`, `remote_active`, and `mutual_active`;
+- compact rendering shows configured `summary_fields` as stable `field=value` text;
 - generic `summary_fields` render stable `field=value` text;
 - invalid config values fall back to defaults.
 
@@ -153,7 +145,7 @@ Manual verification:
 - run the MQTT desktop app;
 - receive retained or live payloads containing `telecafe.group`;
 - confirm the list shows `grupo`, sortable by header;
-- confirm the compact column heading follows `summary_column_name`;
+- confirm the compact column heading follows `column_name`;
 - confirm devices without TeleCafe data remain readable as `sem grupo` / `sem status`.
 
 ## Out Of Scope

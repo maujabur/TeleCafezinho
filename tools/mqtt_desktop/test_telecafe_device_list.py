@@ -100,7 +100,7 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
         cfg = normalize_telecafe_display_config(
             {
                 "group_field": "",
-                "summary_column_name": 12,
+                "column_name": 12,
                 "summary_fields": ["telecafe.combined_state", 9, ""],
             }
         )
@@ -108,6 +108,11 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
         self.assertEqual(cfg["group_field"], DEFAULT_TELECAFE_GROUP_FIELD)
         self.assertEqual(cfg["summary_column_name"], DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME)
         self.assertEqual(cfg["summary_fields"], ["telecafe.combined_state"])
+
+    def test_normalize_telecafe_display_config_accepts_column_name(self):
+        cfg = normalize_telecafe_display_config({"column_name": "indicacao"})
+
+        self.assertEqual(cfg["summary_column_name"], "indicacao")
 
     def test_resolve_payload_field_supports_flat_and_nested_keys(self):
         flat = {"telecafe.group": "mesa-01"}
@@ -136,24 +141,21 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
     def test_group_text_returns_sem_grupo_when_missing(self):
         self.assertEqual(telecafe_group_text(DeviceInfo(device_id="dev-1"), "telecafe.group"), "sem grupo")
 
-    def test_default_summary_renders_operational_states(self):
+    def test_default_summary_renders_configured_field_values(self):
         fields = DEFAULT_TELECAFE_SUMMARY_FIELDS
 
-        self.assertEqual(telecafe_summary_text([{"telecafe.combined_state": "idle"}], fields), "idle")
-        self.assertEqual(telecafe_summary_text([{"telecafe.combined_state": "local_active"}], fields), "local ativo")
         self.assertEqual(
             telecafe_summary_text(
-                [{"telecafe.combined_state": "remote_active", "telecafe.remote_active_count": 2}],
+                [
+                    {
+                        "telecafe.combined_state": "idle",
+                        "telecafe.local_active": False,
+                        "telecafe.remote_active_count": 0,
+                    }
+                ],
                 fields,
             ),
-            "remoto 2",
-        )
-        self.assertEqual(
-            telecafe_summary_text(
-                [{"telecafe.combined_state": "mutual_active", "telecafe.remote_active_count": 3}],
-                fields,
-            ),
-            "mutuo 3",
+            "combined_state=idle | local_active=False | remote_active_count=0",
         )
         self.assertEqual(telecafe_summary_text([{}], fields), "sem status")
 
@@ -172,7 +174,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
         app.telecafe_display_config = normalize_telecafe_display_config(
             {
                 "group_field": "telecafe.group",
-                "summary_column_name": "indicacao",
+                "column_name": "indicacao",
                 "summary_fields": DEFAULT_TELECAFE_SUMMARY_FIELDS,
             }
         )
@@ -198,7 +200,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
         _presence_key, values = app._tree_values_for_device(device)
 
         self.assertEqual(values[1], "mesa-01")
-        self.assertEqual(values[5], "remoto 2")
+        self.assertEqual(values[5], "combined_state=remote_active | remote_active_count=2")
 
     def test_sort_key_orders_grouped_devices_before_ungrouped(self):
         app = self.make_app_shell()
@@ -211,7 +213,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
 
     def test_search_matches_group_and_telecafe_summary(self):
         app = self.make_app_shell()
-        app.device_search_var = _FakeVar("remoto 2")
+        app.device_search_var = _FakeVar("remote_active_count=2")
         device = DeviceInfo(device_id="dev-1", online=True)
         device.last_messages["state"] = MessageSnapshot(
             timestamp=datetime(2026, 7, 3),
@@ -241,7 +243,7 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
         )
 
         self.assertEqual(app._device_tree_cell_tooltip_text("dev-1", "#2"), "grupo: mesa-01")
-        self.assertEqual(app._device_tree_cell_tooltip_text("dev-1", "#6"), "indicacao: local ativo")
+        self.assertEqual(app._device_tree_cell_tooltip_text("dev-1", "#6"), "indicacao: combined_state=local_active")
 
     def test_refresh_device_details_sets_group_and_telecafe_summary(self):
         app = self.make_app_shell()
@@ -296,7 +298,10 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
         app._refresh_device_details()
 
         self.assertEqual(app.detail_value_labels["group"].text, "mesa-01")
-        self.assertEqual(app.detail_value_labels["telecafe_summary"].text, "mutuo 1")
+        self.assertEqual(
+            app.detail_value_labels["telecafe_summary"].text,
+            "combined_state=mutual_active | remote_active_count=1",
+        )
 
 
 if __name__ == "__main__":

@@ -189,7 +189,7 @@ def normalize_telecafe_display_config(raw_config: Any) -> Dict[str, Any]:
     else:
         group_field = group_field.strip()
 
-    summary_column_name = config.get("summary_column_name")
+    summary_column_name = config.get("column_name", config.get("summary_column_name"))
     if not isinstance(summary_column_name, str) or not summary_column_name.strip():
         summary_column_name = DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME
     else:
@@ -259,8 +259,6 @@ def telecafe_group_text(device: DeviceInfo, group_field: str) -> str:
 
 def telecafe_summary_text(sources: list[Dict[str, Any]], summary_fields: list[str]) -> str:
     values = {field_id: _first_payload_value(sources, field_id) for field_id in summary_fields}
-    if summary_fields == DEFAULT_TELECAFE_SUMMARY_FIELDS:
-        return _default_telecafe_summary(values)
     parts = []
     for field_id in summary_fields:
         value = values.get(field_id)
@@ -275,38 +273,6 @@ def _first_payload_value(sources: list[Dict[str, Any]], field_id: str) -> Any:
         if value not in (None, ""):
             return value
     return None
-
-
-def _default_telecafe_summary(values: Dict[str, Any]) -> str:
-    combined_state = values.get("telecafe.combined_state")
-    local_active = _truthy(values.get("telecafe.local_active"))
-    remote_count = _int_or_none(values.get("telecafe.remote_active_count"))
-
-    if combined_state == "idle":
-        return "idle"
-    if combined_state == "local_active" or (local_active and not remote_count):
-        return "local ativo"
-    if combined_state == "remote_active":
-        return f"remoto {remote_count}" if remote_count is not None else "remoto"
-    if combined_state == "mutual_active":
-        return f"mutuo {remote_count}" if remote_count is not None else "mutuo"
-    return "sem status"
-
-
-def _truthy(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"true", "1", "sim", "yes", "on"}
-    return bool(value)
-
-
-def _int_or_none(value: Any) -> Optional[int]:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
 
 class MQTTManager:
     def __init__(self, event_queue: queue.Queue):
