@@ -342,6 +342,51 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
 
         self.assertEqual(values["telecafe.combined_state"], "idle")
 
+    def test_manifest_view_passes_device_to_manifest_sections(self):
+        app = self.make_app_shell()
+        app.status_manifest_frame = object()
+        app.status_technical_manifest_frame = object()
+        app.status_value_labels = {
+            "card.manifest.value": _FakeLabel(),
+            "card.manifest.detail": _FakeLabel(),
+        }
+        app.status_display_values = {}
+        device = DeviceInfo(device_id="dev-1")
+        calls = []
+
+        def fake_section(*args):
+            calls.append(args)
+            return 1
+
+        app._render_status_manifest_section = fake_section
+
+        app._render_status_manifest_view(
+            {
+                "registry_revision": 1,
+                "fields": [
+                    {
+                        "id": "telecafe.combined_state",
+                        "group": "telecafe",
+                        "flags": [{"flag": "state"}],
+                    },
+                    {
+                        "id": "telecafe.signal_seq",
+                        "group": "telecafe",
+                        "flags": [{"flag": "technical"}],
+                    },
+                ],
+            },
+            device,
+            {},
+            {},
+            {},
+            {},
+        )
+
+        self.assertEqual(len(calls), 2)
+        self.assertIs(calls[0][5], device)
+        self.assertIs(calls[1][5], device)
+
     def test_sort_key_orders_grouped_devices_before_ungrouped(self):
         app = self.make_app_shell()
         app.tree_sort_column = "group"
