@@ -2033,6 +2033,8 @@ class App(ctk.CTk):
             ("IP", "ip"),
             ("FW", "fw"),
             ("Session", "session_id"),
+            ("Grupo", "group"),
+            ("TeleCafe", "telecafe_summary"),
             ("Heartbeat ts", "hb_ts"),
             ("Heartbeat uptime_s", "hb_uptime"),
             ("Heartbeat rssi", "hb_rssi"),
@@ -2835,6 +2837,10 @@ class App(ctk.CTk):
         if column_name == "presence":
             _presence_key, presence_text = self._device_presence(device)
             return presence_text
+        if column_name == "group":
+            return f"grupo: {self._telecafe_group_for_device(device)}"
+        if column_name == "telecafe":
+            return f"{self.telecafe_display_config['summary_column_name']}: {self._telecafe_summary_for_device(device)}"
         if column_name == "device_id":
             return device.device_id
         if column_name == "fw":
@@ -3977,6 +3983,8 @@ class App(ctk.CTk):
         self._set_detail("ip", ip)
         self._set_detail("fw", device.fw)
         self._set_detail("session_id", device.session_id)
+        self._set_detail("group", self._telecafe_group_for_device(device))
+        self._set_detail("telecafe_summary", self._telecafe_summary_for_device(device))
 
         self._set_detail("hb_ts", self._field(heartbeat, "ts"))
         self._set_detail("hb_uptime", self._field(heartbeat, "uptime_s"))

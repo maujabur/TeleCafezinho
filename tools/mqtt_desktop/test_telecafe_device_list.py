@@ -19,6 +19,30 @@ class _FakeVar:
         self._value = value
 
 
+class _FakeTree:
+    def __init__(self, columns):
+        self.columns = columns
+
+    def __getitem__(self, key):
+        if key == "columns":
+            return self.columns
+        raise KeyError(key)
+
+
+class _FakeLabel:
+    def __init__(self):
+        self.text = "-"
+
+    def configure(self, **kwargs):
+        if "text" in kwargs:
+            self.text = kwargs["text"]
+
+    def cget(self, key):
+        if key == "text":
+            return self.text
+        return None
+
+
 customtkinter = types.ModuleType("customtkinter")
 customtkinter.CTk = _FakeCTk
 customtkinter.CTkLabel = object
@@ -201,6 +225,78 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
         )
 
         self.assertTrue(app._device_matches_current_filter(device))
+
+    def test_tooltip_text_describes_group_and_telecafe_columns(self):
+        app = self.make_app_shell()
+        app.tree = _FakeTree(("presence", "group", "device_id", "age", "fw", "telecafe", "summary"))
+        app.devices = {"dev-1": DeviceInfo(device_id="dev-1")}
+        app.devices["dev-1"].last_messages["state"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3),
+            topic="topic",
+            payload_obj={
+                "telecafe.group": "mesa-01",
+                "telecafe.combined_state": "local_active",
+            },
+            payload_raw="{}",
+        )
+
+        self.assertEqual(app._device_tree_cell_tooltip_text("dev-1", "#2"), "grupo: mesa-01")
+        self.assertEqual(app._device_tree_cell_tooltip_text("dev-1", "#6"), "indicacao: local ativo")
+
+    def test_refresh_device_details_sets_group_and_telecafe_summary(self):
+        app = self.make_app_shell()
+        app.selected_device = "dev-1"
+        app.devices = {"dev-1": DeviceInfo(device_id="dev-1")}
+        app.detail_value_labels = {
+            key: _FakeLabel()
+            for key in (
+                "device_id",
+                "online",
+                "last_seen",
+                "wifi_ssid",
+                "ip",
+                "fw",
+                "session_id",
+                "group",
+                "telecafe_summary",
+                "hb_ts",
+                "hb_uptime",
+                "hb_rssi",
+                "hb_heap",
+                "hb_vbat",
+                "state",
+                "availability",
+                "event",
+                "event_message",
+                "cmd_ts",
+                "cmd_id",
+                "cmd_ok",
+                "cmd_error",
+                "cmd_result",
+                "state_payload",
+                "availability_payload",
+                "seen_payload",
+                "heartbeat_payload",
+                "config_manifest_payload",
+                "status_manifest_payload",
+                "commands_manifest_payload",
+            )
+        }
+        app.devices["dev-1"].last_messages["state"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3),
+            topic="topic",
+            payload_obj={
+                "telecafe.group": "mesa-01",
+                "telecafe.combined_state": "mutual_active",
+                "telecafe.remote_active_count": 1,
+            },
+            payload_raw="{}",
+        )
+
+        app._refresh_device_details()
+
+        self.assertEqual(app.detail_value_labels["group"].text, "mesa-01")
+        self.assertEqual(app.detail_value_labels["telecafe_summary"].text, "mutuo 1")
 
 
 if __name__ == "__main__":

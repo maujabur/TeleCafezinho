@@ -10,5 +10,14 @@
   "auto_connect_on_start": false,
   "heartbeat_timeout_sec": 180,
   "technical_status_auto_update": true,
-  "technical_status_update_interval_sec": 3
+  "technical_status_update_interval_sec": 3,
+  "telecafe": {
+    "group_field": "telecafe.group",
+    "summary_column_name": "telecafe",
+    "summary_fields": [
+      "telecafe.combined_state",
+      "telecafe.local_active",
+      "telecafe.remote_active_count"
+    ]
+  }
 }
