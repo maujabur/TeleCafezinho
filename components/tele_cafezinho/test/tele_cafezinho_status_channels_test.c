@@ -25,6 +25,7 @@ int main(void)
     assert(field != NULL);
     assert((field->channel_flags & TELE_CHANNEL_FLAG_MQTT) != 0);
     assert((field->channel_flags & TELE_CHANNEL_FLAG_WEB) != 0);
+    assert((field->flags & TELE_STATUS_FLAG_TECHNICAL) != 0);
 
     root = cJSON_CreateObject();
     assert(root != NULL);
@@ -33,6 +34,18 @@ int main(void)
     assert(text != NULL);
     assert(strstr(text, "\"telecafe.group\":\"default\"") != NULL);
     assert(strstr(text, "\"telecafe.signal_source\":\"gpio\"") != NULL);
+    assert(strstr(text, "\"telecafe.combined_state\":\"idle\"") != NULL);
+    cJSON_free(text);
+    cJSON_Delete(root);
+
+    root = cJSON_CreateObject();
+    assert(root != NULL);
+    assert(tele_status_add_fields_to_json(root, TELE_CHANNEL_FLAG_MQTT, TELE_STATUS_FLAG_TECHNICAL) == ESP_OK);
+    text = cJSON_PrintUnformatted(root);
+    assert(text != NULL);
+    assert(strstr(text, "\"telecafe.group\":\"default\"") != NULL);
+    assert(strstr(text, "\"telecafe.local_active\":false") != NULL);
+    assert(strstr(text, "\"telecafe.remote_active_count\":0") != NULL);
     assert(strstr(text, "\"telecafe.combined_state\":\"idle\"") != NULL);
     cJSON_free(text);
     cJSON_Delete(root);

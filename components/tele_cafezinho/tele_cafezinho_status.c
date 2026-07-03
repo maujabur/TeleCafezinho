@@ -59,7 +59,7 @@ static const tele_status_field_t s_fields[] = {
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_STRING,
         .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_TECHNICAL,
         .read.string = read_group,
     },
     {
@@ -79,7 +79,7 @@ static const tele_status_field_t s_fields[] = {
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_BOOL,
         .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_TECHNICAL,
         .read.boolean = read_local_active,
     },
     {
@@ -89,7 +89,7 @@ static const tele_status_field_t s_fields[] = {
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_U32,
         .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_TECHNICAL,
         .read.u32 = read_remote_active_count,
     },
     {
@@ -99,7 +99,7 @@ static const tele_status_field_t s_fields[] = {
         .group = "telecafe",
         .type = TELE_STATUS_TYPE_STRING,
         .channel_flags = TELE_CAFEZINHO_CHANNEL_FLAGS,
-        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT,
+        .flags = TELE_STATUS_FLAG_STATE | TELE_STATUS_FLAG_HEARTBEAT | TELE_STATUS_FLAG_TECHNICAL,
         .read.string = read_combined_state,
     },
     {
