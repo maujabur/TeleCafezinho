@@ -217,6 +217,12 @@ def normalize_device_list_display_config(raw_config: Any) -> Dict[str, Any]:
     return {"custom_columns": custom_columns}
 
 
+def default_split_sash_position(total_width: int, minimum_left_width: int = 320) -> int:
+    if total_width <= 0:
+        return minimum_left_width
+    return max(minimum_left_width, total_width // 2)
+
+
 def _copy_default_device_list_custom_columns() -> list[Dict[str, Any]]:
     copied = []
     for column in DEFAULT_DEVICE_LIST_CUSTOM_COLUMNS:
@@ -647,12 +653,14 @@ class App(ctk.CTk):
         return image
 
     def _build_ui(self):
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        left = ctk.CTkFrame(self, width=430)
-        left.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+        self.main_split_sash_initialized = False
+        self.main_split = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
+        self.main_split.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+
+        left = ctk.CTkFrame(self.main_split)
         left.grid_columnconfigure(0, weight=1)
         left.grid_rowconfigure(2, weight=1)
 
@@ -777,10 +785,12 @@ class App(ctk.CTk):
             self.tree.column(col, width=widths[col], anchor="w")
         self._refresh_tree_headings()
 
-        right = ctk.CTkFrame(self)
-        right.grid(row=0, column=1, sticky="nsew", padx=(0, 12), pady=12)
+        right = ctk.CTkFrame(self.main_split)
         right.grid_columnconfigure(0, weight=1)
         right.grid_rowconfigure(0, weight=1)
+
+        self.main_split.add(left, weight=1)
+        self.main_split.add(right, weight=1)
 
         split = ttk.Panedwindow(right, orient=tk.VERTICAL)
         split.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
@@ -842,6 +852,25 @@ class App(ctk.CTk):
         self.bind_all("<Escape>", self._hide_device_context_menu, add="+")
 
         self._append_log("Application started", tag="info")
+        self.after_idle(self._set_initial_main_split_sash)
+
+    def _set_initial_main_split_sash(self):
+        if getattr(self, "main_split_sash_initialized", False):
+            return
+        split = getattr(self, "main_split", None)
+        if split is None:
+            return
+
+        try:
+            split.update_idletasks()
+            width = int(split.winfo_width())
+            if width <= 1:
+                self.after(80, self._set_initial_main_split_sash)
+                return
+            split.sashpos(0, default_split_sash_position(width))
+            self.main_split_sash_initialized = True
+        except TclError:
+            return
 
     def _ensure_status_panel(self):
         if self.status_panel_built:

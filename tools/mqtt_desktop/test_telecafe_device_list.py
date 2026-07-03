@@ -79,6 +79,7 @@ from tools.mqtt_desktop.mqtt_control_center import (  # noqa: E402
     DeviceInfo,
     MessageSnapshot,
     custom_column_text,
+    default_split_sash_position,
     device_display_sources_for_device,
     normalize_device_list_display_config,
     resolve_payload_field,
@@ -86,6 +87,11 @@ from tools.mqtt_desktop.mqtt_control_center import (  # noqa: E402
 
 
 class TeleCafeDisplayHelperTest(unittest.TestCase):
+    def test_default_split_sash_position_uses_half_width_with_safe_minimum(self):
+        self.assertEqual(default_split_sash_position(1400), 700)
+        self.assertEqual(default_split_sash_position(600), 320)
+        self.assertEqual(default_split_sash_position(2000), 1000)
+
     def test_normalize_device_list_display_config_uses_defaults_for_missing_config(self):
         cfg = normalize_device_list_display_config({})
 
