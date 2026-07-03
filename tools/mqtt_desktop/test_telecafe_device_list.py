@@ -50,6 +50,7 @@ sys.modules.setdefault("paho.mqtt", paho_mqtt)
 sys.modules.setdefault("paho.mqtt.client", paho_mqtt_client)
 
 from tools.mqtt_desktop.mqtt_control_center import (  # noqa: E402
+    App,
     DEFAULT_TELECAFE_GROUP_FIELD,
     DEFAULT_TELECAFE_SUMMARY_COLUMN_NAME,
     DEFAULT_TELECAFE_SUMMARY_FIELDS,
@@ -139,6 +140,67 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
         )
 
         self.assertEqual(text, "combined_state=idle | signal_seq=42")
+
+
+class TeleCafeDeviceListMethodTest(unittest.TestCase):
+    def make_app_shell(self):
+        app = object.__new__(App)
+        app.telecafe_display_config = normalize_telecafe_display_config(
+            {
+                "group_field": "telecafe.group",
+                "summary_column_name": "indicacao",
+                "summary_fields": DEFAULT_TELECAFE_SUMMARY_FIELDS,
+            }
+        )
+        app.pending_cmd_by_id = {}
+        app.device_search_var = _FakeVar("")
+        app.device_filter_var = _FakeVar("Todos")
+        return app
+
+    def test_tree_values_include_group_and_telecafe_summary(self):
+        app = self.make_app_shell()
+        device = DeviceInfo(device_id="dev-1", fw="1.0")
+        device.last_messages["state"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3),
+            topic="topic",
+            payload_obj={
+                "telecafe.group": "mesa-01",
+                "telecafe.combined_state": "remote_active",
+                "telecafe.remote_active_count": 2,
+            },
+            payload_raw="{}",
+        )
+
+        _presence_key, values = app._tree_values_for_device(device)
+
+        self.assertEqual(values[1], "mesa-01")
+        self.assertEqual(values[5], "remoto 2")
+
+    def test_sort_key_orders_grouped_devices_before_ungrouped(self):
+        app = self.make_app_shell()
+        app.tree_sort_column = "group"
+        grouped = DeviceInfo(device_id="a")
+        grouped.group = "mesa-01"
+        ungrouped = DeviceInfo(device_id="b")
+
+        self.assertLess(app._device_sort_key(grouped), app._device_sort_key(ungrouped))
+
+    def test_search_matches_group_and_telecafe_summary(self):
+        app = self.make_app_shell()
+        app.device_search_var = _FakeVar("remoto 2")
+        device = DeviceInfo(device_id="dev-1", online=True)
+        device.last_messages["state"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3),
+            topic="topic",
+            payload_obj={
+                "telecafe.group": "mesa-01",
+                "telecafe.combined_state": "remote_active",
+                "telecafe.remote_active_count": 2,
+            },
+            payload_raw="{}",
+        )
+
+        self.assertTrue(app._device_matches_current_filter(device))
 
 
 if __name__ == "__main__":

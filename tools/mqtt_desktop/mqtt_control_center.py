@@ -488,6 +488,7 @@ class App(ctk.CTk):
         self.tree_sort_column = "device_id"
         self.tree_sort_desc = False
         self.tree_heading_labels: Dict[str, str] = {}
+        self.telecafe_display_config = normalize_telecafe_display_config({})
         self.status_icons: Dict[str, tk.PhotoImage] = {}
         self.device_tree_refresh_after_id: Optional[str] = None
         self.auto_connect_pending = False
@@ -633,7 +634,7 @@ class App(ctk.CTk):
         self.device_search_var.trace_add("write", self._on_device_filter_changed)
         self.device_filter_var.trace_add("write", self._on_device_filter_changed)
 
-        cols = ("presence", "device_id", "age", "fw", "summary")
+        cols = ("presence", "group", "device_id", "age", "fw", "telecafe", "summary")
         self.tree = ttk.Treeview(devices_frame, columns=cols, show=("tree", "headings"), height=12)
         self.tree.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
         self.tree.bind("<<TreeviewSelect>>", self._on_select_device)
@@ -656,12 +657,14 @@ class App(ctk.CTk):
         self.tree.heading("#0", text="")
         self.tree.column("#0", width=28, minwidth=28, stretch=False, anchor="center")
 
-        widths = {"presence": 78, "device_id": 142, "age": 82, "fw": 72, "summary": 300}
+        widths = {"presence": 78, "group": 92, "device_id": 142, "age": 82, "fw": 72, "telecafe": 104, "summary": 260}
         heading_labels = {
             "device_id": "device_id",
             "presence": "estado",
+            "group": "grupo",
             "age": "idade",
             "fw": "fw",
+            "telecafe": str(self.telecafe_display_config["summary_column_name"]),
             "summary": "resumo",
         }
         self.tree_heading_labels = heading_labels
@@ -2099,6 +2102,10 @@ class App(ctk.CTk):
         self.auto_connect_on_start_var.set(
             bool(config_data.get("auto_connect_on_start", self.auto_connect_on_start_var.get()))
         )
+        self.telecafe_display_config = normalize_telecafe_display_config(config_data.get("telecafe"))
+        if "telecafe" in self.tree_heading_labels:
+            self.tree_heading_labels["telecafe"] = str(self.telecafe_display_config["summary_column_name"])
+            self._refresh_tree_headings()
 
     def _auto_connect_if_configured(self):
         if self.auto_connect_pending and bool(self.auto_connect_on_start_var.get()) and not self.mqtt.connected:
@@ -3780,10 +3787,23 @@ class App(ctk.CTk):
                 ssid,
                 ip,
                 rssi,
+                self._telecafe_group_for_device(device),
+                self._telecafe_summary_for_device(device),
                 self._device_summary(device),
             ]
         ).casefold()
         return search in haystack
+
+    def _telecafe_group_for_device(self, device: DeviceInfo) -> str:
+        group = telecafe_group_text(device, str(self.telecafe_display_config["group_field"]))
+        device.group = "" if group == "sem grupo" else group
+        return group
+
+    def _telecafe_summary_for_device(self, device: DeviceInfo) -> str:
+        return telecafe_summary_text(
+            telecafe_display_sources_for_device(device),
+            list(self.telecafe_display_config["summary_fields"]),
+        )
 
     def _device_summary(self, device: DeviceInfo) -> str:
         heartbeat = self._payload_for(device, "heartbeat")
@@ -3875,6 +3895,11 @@ class App(ctk.CTk):
             return device.last_seen or datetime.min
         if col == "fw":
             return (device.fw or "").casefold()
+        if col == "group":
+            group = self._telecafe_group_for_device(device)
+            return (group == "sem grupo", group.casefold(), device.device_id.casefold())
+        if col == "telecafe":
+            return self._telecafe_summary_for_device(device).casefold()
         if col == "summary":
             return self._device_summary(device).casefold()
         return ""
@@ -3883,9 +3908,11 @@ class App(ctk.CTk):
         presence_key, presence_text = self._device_presence(device)
         values = (
             presence_text,
+            self._telecafe_group_for_device(device),
             device.device_id,
             self._format_age(device.last_seen),
             device.fw,
+            self._telecafe_summary_for_device(device),
             self._device_summary(device),
         )
         return presence_key, values
