@@ -66,11 +66,11 @@ Invalid config values should fall back safely:
 
 Add `group` metadata to each `DeviceInfo`, defaulting internally to an empty string. UI rendering should display empty groups as `sem grupo`.
 
-Add helper logic to resolve configured field IDs from device payloads. The helper should support exact field IDs such as `telecafe.group` and should read from known payload sources in a stable priority order:
+Add helper logic to resolve configured field IDs from device payloads. The helper should support exact field IDs such as `telecafe.group` and should read from known payload sources in a stable priority order that favors live status over retained or command snapshots:
 
-1. `device.last_get_state_result`
+1. `heartbeat`
 2. `state`
-3. `heartbeat`
+3. `device.last_get_state_result`
 4. `cmd/out.result`, when it is a dictionary
 5. `device.last_technical_status_result`
 

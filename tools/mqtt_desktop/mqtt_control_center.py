@@ -225,9 +225,9 @@ def resolve_payload_field(payload: Dict[str, Any], field_id: str) -> Any:
 def telecafe_display_sources_for_device(device: DeviceInfo) -> list[Dict[str, Any]]:
     sources: list[Dict[str, Any]] = []
     for payload in (
-        device.last_get_state_result or {},
-        _snapshot_payload(device, "state"),
         _snapshot_payload(device, "heartbeat"),
+        _snapshot_payload(device, "state"),
+        device.last_get_state_result or {},
         _cmd_out_result_payload(device),
         device.last_technical_status_result or {},
     ):

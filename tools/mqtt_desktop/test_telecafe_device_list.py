@@ -122,21 +122,33 @@ class TeleCafeDisplayHelperTest(unittest.TestCase):
         self.assertEqual(resolve_payload_field(nested, "telecafe.group"), "mesa-02")
         self.assertIsNone(resolve_payload_field({}, "telecafe.group"))
 
-    def test_display_sources_prioritize_get_state_before_retained_payloads(self):
+    def test_display_sources_prioritize_live_heartbeat_over_stale_state(self):
         device = DeviceInfo(device_id="dev-1")
-        device.last_get_state_result = {"telecafe.group": "mesa-live"}
-        device.last_technical_status_result = {"telecafe.group": "mesa-tech"}
+        device.last_get_state_result = {
+            "telecafe.group": "mesa-01",
+            "telecafe.combined_state": "idle",
+        }
         device.last_messages["state"] = MessageSnapshot(
             timestamp=datetime(2026, 7, 3),
             topic="topic",
-            payload_obj={"telecafe.group": "mesa-retained"},
+            payload_obj={"telecafe.group": "mesa-01", "telecafe.combined_state": "idle"},
+            payload_raw="{}",
+        )
+        device.last_messages["heartbeat"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3),
+            topic="topic",
+            payload_obj={
+                "telecafe.group": "mesa-01",
+                "telecafe.combined_state": "local_active",
+                "telecafe.local_active": True,
+            },
             payload_raw="{}",
         )
 
         sources = telecafe_display_sources_for_device(device)
 
-        self.assertEqual(resolve_payload_field(sources[0], "telecafe.group"), "mesa-live")
-        self.assertEqual(telecafe_group_text(device, "telecafe.group"), "mesa-live")
+        self.assertEqual(resolve_payload_field(sources[0], "telecafe.combined_state"), "local_active")
+        self.assertEqual(telecafe_group_text(device, "telecafe.group"), "mesa-01")
 
     def test_group_text_returns_sem_grupo_when_missing(self):
         self.assertEqual(telecafe_group_text(DeviceInfo(device_id="dev-1"), "telecafe.group"), "sem grupo")
@@ -201,6 +213,47 @@ class TeleCafeDeviceListMethodTest(unittest.TestCase):
 
         self.assertEqual(values[1], "mesa-01")
         self.assertEqual(values[5], "combined_state=remote_active | remote_active_count=2")
+
+    def test_tree_values_prefer_live_heartbeat_over_stale_state(self):
+        app = self.make_app_shell()
+        device = DeviceInfo(device_id="dev-1", fw="1.0")
+        device.last_messages["state"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3),
+            topic="topic",
+            payload_obj={
+                "telecafe.group": "mesa-01",
+                "telecafe.combined_state": "idle",
+                "telecafe.local_active": False,
+            },
+            payload_raw="{}",
+        )
+        device.last_messages["heartbeat"] = MessageSnapshot(
+            timestamp=datetime(2026, 7, 3),
+            topic="topic",
+            payload_obj={
+                "telecafe.group": "mesa-01",
+                "telecafe.combined_state": "local_active",
+                "telecafe.local_active": True,
+            },
+            payload_raw="{}",
+        )
+
+        _presence_key, values = app._tree_values_for_device(device)
+
+        self.assertEqual(values[5], "combined_state=local_active | local_active=True")
+
+    def test_manifest_values_prefer_live_heartbeat_over_stale_state(self):
+        app = self.make_app_shell()
+
+        values = app._manifest_value_sources(
+            heartbeat={"telecafe.combined_state": "local_active", "telecafe.local_active": True},
+            state_topic={"telecafe.combined_state": "idle", "telecafe.local_active": False},
+            get_state={"telecafe.combined_state": "idle"},
+            technical_status={},
+        )
+
+        self.assertEqual(values["telecafe.combined_state"], "local_active")
+        self.assertIs(values["telecafe.local_active"], True)
 
     def test_sort_key_orders_grouped_devices_before_ungrouped(self):
         app = self.make_app_shell()
